@@ -57,7 +57,9 @@ struct Config {
   glm::vec2 overlay_scale = glm::vec2(1.0f, 1.0f);
   glm::vec2 menu_scale = glm::vec2(0.15f, 0.15f);
   glm::vec2 menu_position = glm::vec2(0.0f, 0.0f);
-  glm::vec4 overlay_color = glm::vec4(0.0f, 0.0f, 0.0f, 0.33f);
+  glm::vec4 overlay_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  float overlay_top_alpha = 0.50f;
+  float overlay_bottom_alpha = 0.10f;
   glm::vec4 menu_color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
   glm::vec2 resume_scale = glm::vec2(0.25f, 0.08f);
   glm::vec2 resume_offset = glm::vec2(0.0f, -0.03f);
@@ -67,9 +69,9 @@ struct Config {
   glm::vec2 audio_offset = glm::vec2(0.0f, -0.31f);
   glm::vec2 main_menu_scale = glm::vec2(0.25f, 0.08f);
   glm::vec2 main_menu_offset = glm::vec2(0.0f, -0.45f);
-  glm::vec2 pause_button_position = glm::vec2(0.84f, -0.84f);
-  glm::vec2 pause_button_scale = glm::vec2(0.11f, 0.11f);
-  glm::vec2 pause_icon_scale = glm::vec2(0.065f, 0.065f);
+  glm::vec2 pause_button_position = glm::vec2(0.90f, -0.90f);
+  glm::vec2 pause_button_scale = glm::vec2(0.095f, 0.095f);
+  glm::vec2 pause_icon_scale = glm::vec2(0.055f, 0.055f);
   float countdown_scale = 0.15f;
   int overlay_layer = 100;
   int menu_layer = 101;
@@ -130,6 +132,7 @@ inline constexpr size_t kMainMenuAction = 3;
 inline constexpr size_t kActionCount = 4;
 
 inline ecs::Entity* overlay = nullptr;
+inline render_system::QuadRenderable* overlay_quad = nullptr;
 inline ecs::Entity* menu_window = nullptr;
 inline std::array<ActionLine, kActionCount> action_lines{};
 
@@ -202,6 +205,29 @@ inline void set_quad_size(render_system::QuadRenderable* quad, float width, floa
   quad->height = height;
   quad->geometry = engine::geometry::make_quad(width, height);
   quad->uploaded = false;
+}
+
+inline void set_vertex_color(engine::Vertex& vertex, const glm::vec4& value) {
+  vertex.r = value.x;
+  vertex.g = value.y;
+  vertex.b = value.z;
+  vertex.a = value.w;
+}
+
+inline engine::GeometryData make_overlay_gradient_geometry(float width, float height) {
+  engine::GeometryData geometry = engine::geometry::make_quad(width, height);
+  if (geometry.vertices.size() < 4) return geometry;
+
+  const glm::vec4 top_color{config.overlay_color.x, config.overlay_color.y,
+                            config.overlay_color.z, clamp_unit(config.overlay_top_alpha)};
+  const glm::vec4 bottom_color{config.overlay_color.x, config.overlay_color.y,
+                               config.overlay_color.z,
+                               clamp_unit(config.overlay_bottom_alpha)};
+  set_vertex_color(geometry.vertices[0], top_color);
+  set_vertex_color(geometry.vertices[1], top_color);
+  set_vertex_color(geometry.vertices[2], bottom_color);
+  set_vertex_color(geometry.vertices[3], bottom_color);
+  return geometry;
 }
 
 inline void update_action_slider_geometry(ActionLine& action) {
@@ -823,10 +849,11 @@ inline void init() {
   overlay_transform->pos = glm::vec2{0.0f, 0.0f};
   overlay->add(overlay_transform);
   overlay->add(arena::create<layers::ConstLayer>(config.overlay_layer));
-  overlay->add(arena::create<render_system::QuadRenderable>(
-      view_size.x, view_size.y,
-      engine::UIColor{config.overlay_color.x, config.overlay_color.y, config.overlay_color.z,
-                      config.overlay_color.w}));
+  overlay_quad = arena::create<render_system::QuadRenderable>(
+      view_size.x, view_size.y, engine::UIColor{1.0f, 1.0f, 1.0f, 1.0f});
+  overlay_quad->geometry = make_overlay_gradient_geometry(view_size.x, view_size.y);
+  overlay_quad->uploaded = false;
+  overlay->add(overlay_quad);
   overlay_hidden = arena::create<hidden::HiddenObject>();
   overlay->add(overlay_hidden);
   overlay_hidden->hide();
