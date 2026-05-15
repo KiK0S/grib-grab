@@ -20,6 +20,8 @@
 #include "systems/hidden/hidden_object.hpp"
 #include "systems/input/input_system.hpp"
 #include "systems/layer/layered_object.hpp"
+#include "systems/collision/collider_object.hpp"
+#include "systems/geometry/shapes/quad.hpp"
 #include "systems/render/render_system.hpp"
 #include "systems/render/sprite_system.hpp"
 #include "systems/scene/scene_object.hpp"
@@ -46,6 +48,7 @@ enum class Stage {
   CatchPractice,
   PlaceThreeTraps,
   TrapCollectDemo,
+  TrapPairIntro,
   TrapPairPractice,
   ShootPractice,
   RecipeIntro,
@@ -108,6 +111,7 @@ inline int pair_spawn_index = 0;
 inline int pair_current_catches = 0;
 inline int shoot_practice_shots = 0;
 inline int shoot_spawn_index = 0;
+inline bool pair_practice_countdown_started = false;
 inline bool recipe_intro_countdown_started = false;
 inline bool recipe_bad_shot = false;
 inline std::array<ecs::Entity*, 3> recipe_preview_entities{};
@@ -291,6 +295,12 @@ inline void show_marker(const glm::vec2& center_px, const engine::UIColor& color
 inline void hide_marker() {
   if (!marker_hidden) return;
   marker_hidden->hide();
+}
+
+inline void pause_main_scene(bool paused) {
+  if (auto* main_scene = scene::get_scene("main")) {
+    main_scene->set_pause(paused);
+  }
 }
 
 inline void set_trap_marker_center(int index, const glm::vec2& center_px) {
@@ -477,14 +487,6 @@ inline ecs::Entity* spawn_single(const std::string& type, float x_px, float y_no
       type, glm::vec2{x_px, view_height() * y_norm});
 }
 
-inline glm::vec2 entity_center(ecs::Entity* entity) {
-  if (!entity) return glm::vec2{0.0f, 0.0f};
-  auto* transform = entity->get<transform::NoRotationTransform>();
-  auto* sprite = entity->get<render_system::SpriteRenderable>();
-  if (!transform || !sprite) return glm::vec2{0.0f, 0.0f};
-  return transform->pos + sprite->size * 0.5f;
-}
-
 inline void spawn_catch_practice_mushroom(const std::string& feedback = "") {
   clear_stage_entities(false);
   static constexpr std::array<float, kPracticeTarget> kCatchLanes{0.28f, 0.72f, 0.42f};
@@ -540,6 +542,27 @@ inline void spawn_trap_demo_mushrooms() {
       good_mushroom_type, glm::vec2{trap_familiar_centers_px[2].x, view_height() * 0.12f});
 }
 
+inline void start_pair_practice_countdown(const std::string& feedback = "") {
+  if (pair_practice_countdown_started) return;
+  pair_practice_countdown_started = true;
+  update_line(hint_text, hint_transform,
+              "Get ready." + (feedback.empty() ? "" : ("  " + feedback)),
+              hint_font_px(), kHintCenterNorm);
+  pause_main_scene(true);
+  countdown::start("main", 3, []() {
+    pause_main_scene(false);
+    if (!active || stage != Stage::TrapPairIntro) return;
+    set_stage(Stage::TrapPairPractice);
+  });
+}
+
+inline void enter_pair_practice_intro_stage(const std::string& feedback = "") {
+  clear_stage_entities();
+  player::reset_familiars();
+  pair_practice_countdown_started = false;
+  start_pair_practice_countdown(feedback);
+}
+
 inline void spawn_pair_practice_pair(const std::string& feedback = "") {
   clear_stage_entities(false);
   static constexpr std::array<std::pair<float, float>, kPracticeTarget> kPairs{
@@ -575,14 +598,37 @@ inline glm::vec2 shoot_spawn_center() {
   return glm::vec2{view_width() * kShootLanes[lane], view_height() * 0.12f};
 }
 
+inline ecs::Entity* spawn_shoot_marker_target(const glm::vec2& center) {
+  const float radius = marker_radius > 0.0f ? marker_radius : 16.0f;
+  const glm::vec2 size{radius * 2.0f, radius * 2.0f};
+
+  auto* entity = arena::create<ecs::Entity>();
+  auto* transform = arena::create<transform::NoRotationTransform>();
+  transform->pos = shrooms::screen::center_to_top_left(center, size);
+  entity->add(transform);
+  entity->add(arena::create<geometry::Quad>(
+      "tutorial_shoot_marker",
+      std::vector<glm::vec2>{
+          glm::vec2{0.0f, 0.0f},
+          glm::vec2{size.x, 0.0f},
+          glm::vec2{0.0f, size.y},
+          glm::vec2{size.x, size.y},
+      }));
+  entity->add(arena::create<layers::ConstLayer>(9));
+  entity->add(arena::create<render_system::CircleRenderable>(
+      radius, engine::UIColor{0.95f, 0.35f, 0.35f, 0.9f}));
+  entity->add(arena::create<collision::ColliderObject>("bone_projectile_handler"));
+  entity->add(arena::create<scene::SceneObject>("main"));
+  return entity;
+}
+
 inline void spawn_shoot_practice_target(const std::string& feedback = "") {
   clear_stage_entities(false);
   const glm::vec2 center = shoot_spawn_center();
-  stage_entity_a = levels::spawn_mushroom_now(bad_mushroom_type, center);
+  stage_entity_a = spawn_shoot_marker_target(center);
   ++shoot_spawn_index;
-  show_marker(center, engine::UIColor{0.95f, 0.35f, 0.35f, 0.9f});
   update_line(hint_text, hint_transform,
-              "Shoot three mukhomor mushrooms: " + std::to_string(shoot_practice_shots) +
+              "Shoot three red markers: " + std::to_string(shoot_practice_shots) +
                   "/" + std::to_string(kPracticeTarget) + "." +
                   (feedback.empty() ? "" : ("  " + feedback)),
               hint_font_px(), kHintCenterNorm);
@@ -648,14 +694,10 @@ inline void start_recipe_countdown() {
   recipe_intro_countdown_started = true;
   clear_recipe_preview();
   update_line(hint_text, hint_transform, "Get ready.", hint_font_px(), kHintCenterNorm);
-  if (auto* main_scene = scene::get_scene("main")) {
-    main_scene->set_pause(true);
-  }
+  pause_main_scene(true);
   countdown::start("main", 3, []() {
+    pause_main_scene(false);
     if (!active || stage != Stage::RecipeIntro) return;
-    if (auto* main_scene = scene::get_scene("main")) {
-      main_scene->set_pause(false);
-    }
     set_stage(Stage::RecipeScenario);
   });
 }
@@ -686,7 +728,6 @@ inline void enter_recipe_scenario_stage() {
   stage_entity_a = levels::spawn_mushroom_now(bad_mushroom_type, centers[0]);
   stage_entity_b = levels::spawn_mushroom_now(good_mushroom_type, centers[1]);
   stage_entity_c = levels::spawn_mushroom_now(good_mushroom_type, centers[2]);
-  show_marker(centers[0], engine::UIColor{0.95f, 0.35f, 0.35f, 0.9f});
 }
 
 inline void maybe_complete_recipe_scenario() {
@@ -758,6 +799,12 @@ inline void set_stage(Stage next, const std::string& feedback) {
       enter_trap_collect_demo_stage();
       break;
     }
+    case Stage::TrapPairIntro: {
+      update_line(title_text, title_transform, "Tutorial: Bat Practice", title_font_px(),
+                  kTitleCenterNorm);
+      enter_pair_practice_intro_stage(feedback);
+      break;
+    }
     case Stage::TrapPairPractice: {
       update_line(title_text, title_transform, "Tutorial: Bat Practice", title_font_px(),
                   kTitleCenterNorm);
@@ -769,7 +816,7 @@ inline void set_stage(Stage next, const std::string& feedback) {
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
                   "Use " + controls::bound_key_label(controls::Action::Shoot) +
-                      " to shoot the marked mukhomor." +
+                      " to shoot the red marker." +
                       base_feedback,
                   hint_font_px(), kHintCenterNorm);
       enter_shoot_practice_stage(feedback);
@@ -890,7 +937,7 @@ inline void on_mushroom_caught(const std::string&, ecs::Entity* entity, bool fro
       stage_entity_a = nullptr;
       stage_entity_b = nullptr;
       stage_entity_c = nullptr;
-      set_stage(Stage::TrapPairPractice);
+      set_stage(Stage::TrapPairIntro);
     }
     return;
   }
@@ -916,7 +963,7 @@ inline void on_mushroom_caught(const std::string&, ecs::Entity* entity, bool fro
   }
   if (stage == Stage::ShootPractice) {
     if (is_stage_entity(entity, stage_entity_a)) {
-      restart_stage("Shoot the marked mukhomor instead of catching it.");
+      restart_stage("Shoot the red marker instead of catching it.");
     }
     return;
   }
@@ -989,7 +1036,6 @@ inline void on_mushroom_sorted(const std::string&, ecs::Entity* entity) {
     return;
   }
   if (stage == Stage::ShootPractice && is_stage_entity(entity, stage_entity_a)) {
-    hide_marker();
     stage_entity_a = nullptr;
     shoot_practice_shots += 1;
     if (shoot_practice_shots >= kPracticeTarget) {
@@ -1001,7 +1047,6 @@ inline void on_mushroom_sorted(const std::string&, ecs::Entity* entity) {
   }
   if (stage == Stage::RecipeScenario) {
     if (is_stage_entity(entity, stage_entity_a)) {
-      hide_marker();
       recipe_bad_removed = true;
       recipe_bad_shot = true;
       stage_a_done = true;
@@ -1078,24 +1123,11 @@ struct TutorialController : public dynamic::DynamicObject {
       }
       return;
     }
-    if (stage == Stage::ShootPractice) {
-      if (stage_entity_a && !stage_entity_a->is_pending_deletion()) {
-        show_marker(entity_center(stage_entity_a),
-                    engine::UIColor{0.95f, 0.35f, 0.35f, 0.9f});
-      }
-      return;
-    }
     if (stage == Stage::RecipeIntro) {
       if (stage_timer >= kRecipePreviewSeconds) {
         start_recipe_countdown();
       }
       return;
-    }
-    if (stage == Stage::RecipeScenario) {
-      if (stage_entity_a && !stage_entity_a->is_pending_deletion() && !stage_a_done) {
-        show_marker(entity_center(stage_entity_a),
-                    engine::UIColor{0.95f, 0.35f, 0.35f, 0.9f});
-      }
     }
   }
 };
