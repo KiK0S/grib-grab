@@ -233,6 +233,12 @@ inline void register_params() {
   auto& pause_group = reg.group("shrooms/pause_menu");
   reg.add(pause_group, "overlay_color", pause_menu::config.overlay_color)
       .label("Overlay Color");
+  reg.add(pause_group, "overlay_top_alpha", pause_menu::config.overlay_top_alpha)
+      .label("Overlay Top Alpha")
+      .range(0.0f, 1.0f, 0.01f);
+  reg.add(pause_group, "overlay_bottom_alpha", pause_menu::config.overlay_bottom_alpha)
+      .label("Overlay Bottom Alpha")
+      .range(0.0f, 1.0f, 0.01f);
   reg.add(pause_group, "menu_color", pause_menu::config.menu_color)
       .label("Menu Color");
   reg.add(pause_group, "countdown_scale", pause_menu::config.countdown_scale)

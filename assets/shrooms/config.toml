@@ -80,7 +80,9 @@ scale = 0.15
 layer = 120
 
 [shrooms.pause_menu]
-overlay_color = [0, 0, 0, 0.33]
+overlay_color = [0, 0, 0, 1]
+overlay_top_alpha = 0.5
+overlay_bottom_alpha = 0.1
 menu_color = [1, 0.38, 1, 1]
 countdown_scale = 0.15
 overlay_layer = 100
