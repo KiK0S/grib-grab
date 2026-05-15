@@ -475,7 +475,6 @@ struct FamiliarLogic : public dynamic::DynamicObject {
       sprite->grayscale = false;
     }
     trail_timer = 0.0f;
-    vfx::spawn_projectile_flash(emerge_start, size);
     update_bat_hud();
   }
 
