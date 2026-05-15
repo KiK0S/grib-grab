@@ -33,7 +33,7 @@ namespace score_hud {
 struct Config {
   glm::vec2 panel_reference_size = glm::vec2(0.0f, 0.0f);
   glm::vec2 face_reference_size = glm::vec2(0.0f, 0.0f);
-  glm::vec2 face_offset = glm::vec2(-0.05f, -0.11f);
+  glm::vec2 face_offset = glm::vec2(-0.05f, -0.035f);
   glm::vec2 score_offset = glm::vec2(-0.005f, -0.075f);
   float score_font_px = 20.0f;
   glm::vec4 score_color = glm::vec4(1.0f);
@@ -44,6 +44,9 @@ struct Config {
 
 inline constexpr size_t kMaxLifeHearts = 3;
 inline constexpr size_t kMaxBatIcons = 3;
+inline constexpr float kBatRowWidthFraction = 0.80f;
+inline constexpr float kBatRowCenterYFraction = 0.86f;
+inline constexpr float kBatGapToIconWidth = 0.12f;
 
 inline ecs::Entity* face_icon = nullptr;
 inline ecs::Entity* panel = nullptr;
@@ -127,7 +130,10 @@ inline glm::vec2 lives_anchor_px() {
 }
 
 inline glm::vec2 bats_anchor_px() {
-  return face_center_px() + shrooms::screen::scale_to_pixels(glm::vec2{0.0f, 0.034f});
+  const glm::vec2 panel_top_left = shrooms::screen::norm_to_pixels(panel_top_left_norm());
+  const glm::vec2 size = panel_size_px();
+  return panel_top_left + glm::vec2{size.x * 0.5f, size.y * kBatRowCenterYFraction} +
+         hud_offset_px;
 }
 
 inline void update_score_layout() {
@@ -169,10 +175,13 @@ inline void update_lives_layout() {
 }
 
 inline void update_bat_layout() {
+  const float target_width = panel_size_px().x * kBatRowWidthFraction;
   const float bat_width =
-      std::max(11.0f, shrooms::screen::scale_to_pixels(glm::vec2{0.018f, 0.0f}).x);
+      std::max(11.0f, target_width /
+                          (static_cast<float>(kMaxBatIcons) +
+                           kBatGapToIconWidth * static_cast<float>(kMaxBatIcons - 1)));
   const glm::vec2 bat_size = shrooms::texture_sizing::from_width_px("famiriar", bat_width);
-  const float gap = std::max(2.0f, bat_width * 0.16f);
+  const float gap = std::max(2.0f, bat_width * kBatGapToIconWidth);
   const float total_width =
       bat_size.x * static_cast<float>(kMaxBatIcons) + gap * static_cast<float>(kMaxBatIcons - 1);
   const glm::vec2 row_start = bats_anchor_px() - glm::vec2{total_width * 0.5f, 0.0f};
