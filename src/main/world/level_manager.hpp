@@ -977,7 +977,7 @@ inline void on_mushroom_missed(const std::string& type, ecs::Entity* entity) {
   if (active_it != active_entities.end()) {
     active_it->second.erase(entity);
   }
-  if (!tutorial_mode) {
+  if (!tutorial_mode && !is_infinite_collector_run()) {
     apply_score_delta(kScoreMiss, score_anchor_for_entity(entity), true);
   }
   vfx::spawn_miss_effect(entity);
