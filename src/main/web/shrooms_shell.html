@@ -641,6 +641,109 @@
       setPageActive(computePageActive());
     }
 
+    const textInputDomState = {
+      lastFocusAttemptMs: 0,
+    };
+
+    function getEngineTextInput() {
+      if (typeof Module === "undefined" || !Module) {
+        return null;
+      }
+      return Module.__engineTextInput || null;
+    }
+
+    function isEngineTextInputOpen(input = getEngineTextInput()) {
+      return !!input && input.style.display !== "none" && !input.disabled;
+    }
+
+    function prepareEngineTextInputForFocus(input) {
+      input.style.position = "fixed";
+      input.style.left = "0px";
+      input.style.top = "0px";
+      input.style.right = "0px";
+      input.style.bottom = "0px";
+      input.style.width = "100vw";
+      input.style.height = "100dvh";
+      input.style.opacity = "0.01";
+      input.style.fontSize = "16px";
+      input.style.color = "transparent";
+      input.style.background = "transparent";
+      input.style.caretColor = "transparent";
+      input.style.outline = "none";
+      input.style.pointerEvents = "auto";
+      input.inputMode = "text";
+      input.enterKeyHint = "done";
+    }
+
+    function focusEngineTextInput(input) {
+      prepareEngineTextInputForFocus(input);
+      const scrollX = window.scrollX || 0;
+      const scrollY = window.scrollY || 0;
+      try {
+        input.focus({ preventScroll: true });
+      } catch (err) {
+        input.focus();
+      }
+      window.scrollTo(scrollX, scrollY);
+      if (input.setSelectionRange) {
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    }
+
+    function focusEngineTextInputFromGesture(evt) {
+      const input = getEngineTextInput();
+      if (!isEngineTextInputOpen(input) || evt.target === input) {
+        return;
+      }
+      if (typeof evt.preventDefault === "function") {
+        evt.preventDefault();
+      }
+      const now = performance.now();
+      if (document.activeElement === input && now - textInputDomState.lastFocusAttemptMs < 250) {
+        return;
+      }
+      textInputDomState.lastFocusAttemptMs = now;
+      focusEngineTextInput(input);
+    }
+
+    function submitEngineTextInputFromDom() {
+      const input = getEngineTextInput();
+      if (!isEngineTextInputOpen(input)) {
+        return;
+      }
+      Module.__engineTextSubmit = 1;
+    }
+
+    function installEngineTextInputDomBridge() {
+      const focusOptions = { capture: true, passive: false };
+      document.addEventListener("pointerdown", focusEngineTextInputFromGesture, focusOptions);
+      document.addEventListener("touchstart", focusEngineTextInputFromGesture, focusOptions);
+      document.addEventListener("mousedown", focusEngineTextInputFromGesture, focusOptions);
+
+      document.addEventListener("keydown", (evt) => {
+        if (evt.target !== getEngineTextInput() || evt.key !== "Enter") {
+          return;
+        }
+        submitEngineTextInputFromDom();
+        evt.preventDefault();
+      }, true);
+
+      document.addEventListener("beforeinput", (evt) => {
+        if (evt.target !== getEngineTextInput() || evt.inputType !== "insertLineBreak") {
+          return;
+        }
+        submitEngineTextInputFromDom();
+        evt.preventDefault();
+      }, true);
+
+      document.addEventListener("blur", (evt) => {
+        if (evt.target !== getEngineTextInput() || document.visibilityState !== "visible") {
+          return;
+        }
+        submitEngineTextInputFromDom();
+      }, true);
+    }
+
     function pushKeyState(keyCode, pressed) {
       if (!bridgeReady() || typeof Module._shrooms_push_key_event !== "function") {
         return;
@@ -1090,6 +1193,7 @@
 
     Module.setStatus("Downloading...");
     drawGameFontTitle();
+    installEngineTextInputDomBridge();
     syncPageActive();
     applyControlsMode();
     markStartup("emscripten-script-start");
