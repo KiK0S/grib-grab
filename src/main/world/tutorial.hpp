@@ -252,13 +252,17 @@ inline std::string wrap_text_for_view(const std::string& value, float font_px,
   return join_lines(lines);
 }
 
-inline void set_visible(bool visible) {
+inline void set_text_visible(bool visible) {
   if (title_hidden) {
     title_hidden->set_visible(visible);
   }
   if (hint_hidden) {
     hint_hidden->set_visible(visible);
   }
+}
+
+inline void set_visible(bool visible) {
+  set_text_visible(visible);
   if (marker_hidden) {
     marker_hidden->set_visible(false);
   }
@@ -281,6 +285,11 @@ inline void update_line(text::TextObject* text_obj, transform::NoRotationTransfo
 
 inline void clear_line(text::TextObject* text_obj) {
   if (text_obj) text_obj->text.clear();
+}
+
+inline void clear_tutorial_text() {
+  clear_line(title_text);
+  clear_line(hint_text);
 }
 
 inline void set_marker_center(const glm::vec2& center_px) {
@@ -546,12 +555,11 @@ inline void spawn_trap_demo_mushrooms() {
       good_mushroom_type, glm::vec2{trap_familiar_centers_px[2].x, view_height() * 0.12f});
 }
 
-inline void start_pair_practice_countdown(const std::string& feedback = "") {
+inline void start_pair_practice_countdown(const std::string& = "") {
   if (pair_practice_countdown_started) return;
   pair_practice_countdown_started = true;
-  update_line(hint_text, hint_transform,
-              "Get ready." + (feedback.empty() ? "" : ("  " + feedback)),
-              hint_font_px(), kHintCenterNorm);
+  clear_tutorial_text();
+  set_text_visible(false);
   pause_main_scene(true);
   countdown::start("main", 3, []() {
     pause_main_scene(false);
@@ -698,7 +706,8 @@ inline void start_recipe_countdown() {
   recipe_intro_countdown_started = true;
   clear_recipe_preview();
   scoreboard::animate_to_layout(scoreboard::LayoutState::Corner, kRecipePreviewSeconds);
-  // update_line(hint_text, hint_transform, "Get ready.", hint_font_px(), kHintCenterNorm);
+  clear_tutorial_text();
+  set_text_visible(false);
   pause_main_scene(true);
   countdown::start("main", 3, []() {
     pause_main_scene(false);
@@ -717,7 +726,8 @@ inline void enter_recipe_intro_stage(const std::string& = "") {
   show_tutorial_recipe_board();
   scoreboard::set_layout(scoreboard::LayoutState::CenterIntro);
   spawn_recipe_previews();
-  clear_line(hint_text);
+  clear_tutorial_text();
+  set_text_visible(false);
 }
 
 inline void enter_recipe_scenario_stage() {
@@ -746,6 +756,13 @@ inline void set_stage(Stage next, const std::string& feedback) {
   clear_recipe_preview();
   player::set_movement_locked(false);
   hide_tutorial_lives();
+
+  const bool stage_text_visible =
+      stage != Stage::TrapPairIntro && stage != Stage::RecipeIntro && stage != Stage::None;
+  set_text_visible(stage_text_visible);
+  if (!stage_text_visible) {
+    clear_tutorial_text();
+  }
 
   const std::string base_feedback = feedback.empty() ? "" : ("  " + feedback);
   switch (stage) {
@@ -825,7 +842,6 @@ inline void set_stage(Stage next, const std::string& feedback) {
       break;
     }
     case Stage::RecipeIntro: {
-      clear_line(title_text);
       enter_recipe_intro_stage(feedback);
       break;
     }
