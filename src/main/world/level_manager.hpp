@@ -7,6 +7,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -133,6 +134,7 @@ inline std::string infinite_preview_date{};
 inline LevelDefinition infinite_level{};
 inline LevelDefinition tutorial_level{};
 inline bool progress_save_exists = false;
+inline bool tutorial_completed = false;
 inline std::unordered_map<std::string, SpawnerPlan> base_spawner_plans{};
 inline std::vector<std::string> infinite_types{};
 inline render_system::SpriteRenderable* background_sprite = nullptr;
@@ -158,6 +160,13 @@ inline TutorialSortHook tutorial_sort_hook{};
 constexpr const char* kLegacyProgressKey = "shrooms_progress";
 constexpr const char* kSelectedModeKey = "shrooms_selected_mode";
 inline constexpr size_t kTutorialLevelIndexOffset = 1;
+
+struct ProgressSaveData {
+  size_t unlocked_level_count = 0;
+  bool has_unlocked_level_count = false;
+  bool tutorial_completed = false;
+  bool has_tutorial_completed = false;
+};
 
 inline const char* progress_key_for_mode(GameMode mode) {
   switch (mode) {
@@ -271,6 +280,8 @@ inline bool is_unlocked(size_t index) {
 inline size_t unlocked_levels() { return unlocked_level_count; }
 
 inline bool has_progress_save() { return progress_save_exists; }
+
+inline bool has_completed_tutorial() { return tutorial_completed; }
 
 inline int progress_for_type(const LevelDefinition& level, const std::string& type) {
   switch (level.objective_rule) {
@@ -403,30 +414,130 @@ inline std::string loss_reason_label(const LossInfo& info) {
   }
 }
 
+inline bool parse_bool_value(const std::string& value, bool& out) {
+  if (value == "1" || value == "true" || value == "True") {
+    out = true;
+    return true;
+  }
+  if (value == "0" || value == "false" || value == "False") {
+    out = false;
+    return true;
+  }
+  return false;
+}
+
+inline void parse_progress_save_line(std::string line, ProgressSaveData& data) {
+  if (!line.empty() && line.back() == '\r') {
+    line.pop_back();
+  }
+  if (line.empty()) return;
+
+  const size_t delimiter = line.find('=');
+  if (delimiter == std::string::npos) {
+    if (data.has_unlocked_level_count) return;
+    std::istringstream in(line);
+    size_t count = 0;
+    if (in >> count) {
+      data.unlocked_level_count = count;
+      data.has_unlocked_level_count = true;
+    }
+    return;
+  }
+
+  const std::string key = line.substr(0, delimiter);
+  const std::string value = line.substr(delimiter + 1);
+  if (key == "unlocked") {
+    std::istringstream in(value);
+    size_t count = 0;
+    if (in >> count) {
+      data.unlocked_level_count = count;
+      data.has_unlocked_level_count = true;
+    }
+    return;
+  }
+  if (key == "tutorial_completed") {
+    bool completed = false;
+    if (parse_bool_value(value, completed)) {
+      data.tutorial_completed = completed;
+      data.has_tutorial_completed = true;
+    }
+  }
+}
+
+inline ProgressSaveData parse_progress_save(const std::string& text) {
+  ProgressSaveData data{};
+  std::istringstream lines(text);
+  std::string line;
+  while (std::getline(lines, line)) {
+    parse_progress_save_line(line, data);
+  }
+  return data;
+}
+
+inline std::string serialize_progress_save() {
+  std::ostringstream out;
+  out << unlocked_level_count << '\n';
+  out << "version=2\n";
+  out << "unlocked=" << unlocked_level_count << '\n';
+  out << "tutorial_completed=" << (tutorial_completed ? 1 : 0) << '\n';
+  return out.str();
+}
+
+inline std::optional<std::string> read_progress_text_for_mode(GameMode mode,
+                                                              bool include_shared_legacy) {
+  auto saved = save::read_text(progress_key_for_mode(mode));
+  if (!saved) {
+    saved = save::read_text(legacy_progress_key_for_mode(mode));
+  }
+  if (!saved && include_shared_legacy) {
+    saved = save::read_text(kLegacyProgressKey);
+  }
+  return saved;
+}
+
+inline bool progress_text_marks_tutorial_completed(const std::string& text) {
+  const ProgressSaveData data = parse_progress_save(text);
+  if (data.has_tutorial_completed) {
+    return data.tutorial_completed;
+  }
+  return data.has_unlocked_level_count;
+}
+
+inline bool read_any_tutorial_completed_save() {
+  if (auto saved = read_progress_text_for_mode(GameMode::Collector, false)) {
+    if (progress_text_marks_tutorial_completed(*saved)) return true;
+  }
+  if (auto saved = read_progress_text_for_mode(GameMode::Recipe, false)) {
+    if (progress_text_marks_tutorial_completed(*saved)) return true;
+  }
+  if (auto saved = save::read_text(kLegacyProgressKey)) {
+    if (progress_text_marks_tutorial_completed(*saved)) return true;
+  }
+  return false;
+}
+
 inline void save_progress() {
   if (parsed_levels.empty()) return;
-  save::write_text(progress_key_for_mode(current_game_mode),
-                   std::to_string(unlocked_level_count));
+  save::write_text(progress_key_for_mode(current_game_mode), serialize_progress_save());
+  progress_save_exists = true;
 }
 
 inline void load_progress() {
   unlocked_level_count = parsed_levels.empty() ? 0 : 1;
-  auto saved = save::read_text(progress_key_for_mode(current_game_mode));
-  if (!saved) {
-    saved = save::read_text(legacy_progress_key_for_mode(current_game_mode));
-  }
-  if (!saved) {
-    // Migration path from the old shared key.
-    saved = save::read_text(kLegacyProgressKey);
-  }
+  auto saved = read_progress_text_for_mode(current_game_mode, true);
   progress_save_exists = saved.has_value();
+  tutorial_completed = read_any_tutorial_completed_save();
   if (!saved) return;
-  std::istringstream in(*saved);
-  size_t count = 0;
-  if (!(in >> count)) {
+  const ProgressSaveData data = parse_progress_save(*saved);
+  if (!data.has_unlocked_level_count) {
     return;
   }
-  unlocked_level_count = clamp_unlocked(count);
+  unlocked_level_count = clamp_unlocked(data.unlocked_level_count);
+  if (data.has_tutorial_completed) {
+    tutorial_completed = tutorial_completed || data.tutorial_completed;
+  } else {
+    tutorial_completed = true;
+  }
 }
 
 inline void save_selected_mode() {
@@ -451,6 +562,12 @@ inline void unlock_next_level(size_t level_index) {
     unlocked_level_count = clamped;
     save_progress();
   }
+}
+
+inline void mark_tutorial_completed() {
+  if (tutorial_completed && progress_save_exists) return;
+  tutorial_completed = true;
+  save_progress();
 }
 
 inline void reset_active_entities() {
@@ -1323,7 +1440,9 @@ inline void finalize_level(bool success) {
     last_game_success = success;
   } else if (tutorial_mode) {
     if (success) {
+      mark_tutorial_completed();
       set_game_mode(GameMode::Collector);
+      save_progress();
     }
     last_result.level_index = tutorial_menu_index();
     last_result.level_id = "Tutorial";
@@ -1447,6 +1566,7 @@ inline void initialize() {
   infinite_collector_queue.clear();
   infinite_collector_ticket_index = 0;
   progress_save_exists = false;
+  tutorial_completed = false;
   load_progress();
   active_entities.clear();
   collected_counts.clear();

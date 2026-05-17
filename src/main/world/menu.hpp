@@ -2273,7 +2273,7 @@ inline void init() {
   refresh_name_entry_lines();
 
   enter_main_menu_mode();
-  if (!levels::has_progress_save()) {
+  if (!levels::has_completed_tutorial()) {
     enter_tutorial_objective_mode();
     start_pending_level();
   }
