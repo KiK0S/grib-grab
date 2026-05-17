@@ -693,6 +693,7 @@ inline void start_recipe_countdown() {
   if (recipe_intro_countdown_started) return;
   recipe_intro_countdown_started = true;
   clear_recipe_preview();
+  scoreboard::animate_to_layout(scoreboard::LayoutState::Corner, kRecipePreviewSeconds);
   update_line(hint_text, hint_transform, "Get ready.", hint_font_px(), kHintCenterNorm);
   pause_main_scene(true);
   countdown::start("main", 3, []() {
