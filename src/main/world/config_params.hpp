@@ -269,6 +269,12 @@ inline void register_params() {
   reg.add(score_hud_group, "score_offset_y", score_hud::config.score_offset.y)
       .label("Score Offset Y")
       .range(-0.5f, 0.5f, 0.005f);
+  reg.add(score_hud_group, "lives_offset_x", score_hud::config.lives_offset.x)
+      .label("Lives Offset X")
+      .range(-0.5f, 0.5f, 0.005f);
+  reg.add(score_hud_group, "lives_offset_y", score_hud::config.lives_offset.y)
+      .label("Lives Offset Y")
+      .range(-0.5f, 0.5f, 0.005f);
   reg.add(score_hud_group, "score_font_px", score_hud::config.score_font_px)
       .label("Score Font")
       .range(8.0f, 48.0f, 1.0f);

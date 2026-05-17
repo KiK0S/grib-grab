@@ -34,7 +34,8 @@ struct Config {
   glm::vec2 panel_reference_size = glm::vec2(0.0f, 0.0f);
   glm::vec2 face_reference_size = glm::vec2(0.0f, 0.0f);
   glm::vec2 face_offset = glm::vec2(-0.05f, -0.035f);
-  glm::vec2 score_offset = glm::vec2(-0.005f, -0.075f);
+  glm::vec2 score_offset = glm::vec2(-0.005f, -0.070f);
+  glm::vec2 lives_offset = glm::vec2(0.0f, 0.037f);
   float score_font_px = 20.0f;
   glm::vec4 score_color = glm::vec4(1.0f);
   float intro_slide_duration = 0.65f;
@@ -126,7 +127,7 @@ inline glm::vec2 score_anchor_px() {
 }
 
 inline glm::vec2 lives_anchor_px() {
-  return score_anchor_px() + shrooms::screen::scale_to_pixels(glm::vec2{0.0f, 0.047f});
+  return score_anchor_px() + shrooms::screen::scale_to_pixels(config.lives_offset);
 }
 
 inline glm::vec2 bats_anchor_px() {
