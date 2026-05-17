@@ -598,16 +598,15 @@ inline glm::vec2 shoot_spawn_center() {
   return glm::vec2{view_width() * kShootLanes[lane], view_height() * 0.12f};
 }
 
-inline ecs::Entity* spawn_shoot_marker_target(const glm::vec2& center) {
-  const float radius = marker_radius > 0.0f ? marker_radius : 16.0f;
-  const glm::vec2 size{radius * 2.0f, radius * 2.0f};
-
+inline ecs::Entity* spawn_shoot_mukhomor_target(const glm::vec2& center) {
+  const std::string texture_name = bad_mushroom_type.empty() ? "mukhomor" : bad_mushroom_type;
+  const glm::vec2 size = shrooms::texture_sizing::from_reference_width(texture_name, 28.0f);
   auto* entity = arena::create<ecs::Entity>();
   auto* transform = arena::create<transform::NoRotationTransform>();
   transform->pos = shrooms::screen::center_to_top_left(center, size);
   entity->add(transform);
   entity->add(arena::create<geometry::Quad>(
-      "tutorial_shoot_marker",
+      "tutorial_shoot_mukhomor",
       std::vector<glm::vec2>{
           glm::vec2{0.0f, 0.0f},
           glm::vec2{size.x, 0.0f},
@@ -615,8 +614,9 @@ inline ecs::Entity* spawn_shoot_marker_target(const glm::vec2& center) {
           glm::vec2{size.x, size.y},
       }));
   entity->add(arena::create<layers::ConstLayer>(9));
-  entity->add(arena::create<render_system::CircleRenderable>(
-      radius, engine::UIColor{0.95f, 0.35f, 0.35f, 0.9f}));
+  const engine::TextureId tex_id = engine::resources::register_texture(texture_name);
+  entity->add(arena::create<render_system::SpriteRenderable>(tex_id, size));
+  entity->add(arena::create<collision::ColliderObject>("mushroom_catch_handler"));
   entity->add(arena::create<collision::ColliderObject>("bone_projectile_handler"));
   entity->add(arena::create<scene::SceneObject>("main"));
   return entity;
@@ -625,10 +625,10 @@ inline ecs::Entity* spawn_shoot_marker_target(const glm::vec2& center) {
 inline void spawn_shoot_practice_target(const std::string& feedback = "") {
   clear_stage_entities(false);
   const glm::vec2 center = shoot_spawn_center();
-  stage_entity_a = spawn_shoot_marker_target(center);
+  stage_entity_a = spawn_shoot_mukhomor_target(center);
   ++shoot_spawn_index;
   update_line(hint_text, hint_transform,
-              "Shoot three red markers: " + std::to_string(shoot_practice_shots) +
+              "Shoot three mukhomors: " + std::to_string(shoot_practice_shots) +
                   "/" + std::to_string(kPracticeTarget) + "." +
                   (feedback.empty() ? "" : ("  " + feedback)),
               hint_font_px(), kHintCenterNorm);
@@ -816,7 +816,7 @@ inline void set_stage(Stage next, const std::string& feedback) {
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
                   "Use " + controls::bound_key_label(controls::Action::Shoot) +
-                      " to shoot the red marker." +
+                      " to shoot the mukhomor." +
                       base_feedback,
                   hint_font_px(), kHintCenterNorm);
       enter_shoot_practice_stage(feedback);
@@ -963,7 +963,7 @@ inline void on_mushroom_caught(const std::string&, ecs::Entity* entity, bool fro
   }
   if (stage == Stage::ShootPractice) {
     if (is_stage_entity(entity, stage_entity_a)) {
-      restart_stage("Shoot the red marker instead of catching it.");
+      restart_stage("Shoot the mukhomor instead of catching it.");
     }
     return;
   }
@@ -1007,7 +1007,7 @@ inline void on_mushroom_missed(const std::string&, ecs::Entity* entity) {
   }
   if (stage == Stage::ShootPractice && is_stage_entity(entity, stage_entity_a)) {
     stage_entity_a = nullptr;
-    spawn_shoot_practice_target("It fell. Shoot the next one earlier.");
+    spawn_shoot_practice_target("Shoot the next mukhomor.");
     return;
   }
   if (stage == Stage::RecipeScenario &&

@@ -1175,7 +1175,7 @@ inline void enter_tutorial_objective_mode() {
       "2. Catch three mushrooms",
       "3. Send three bats",
       "4. Collect far pairs",
-      "5. Shoot three mukhomor",
+      "5. Shoot three mukhomors",
       "6. Complete the recipe",
   };
   for (size_t i = 0; i < lines.size(); ++i) {
