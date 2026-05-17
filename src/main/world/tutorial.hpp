@@ -279,6 +279,10 @@ inline void update_line(text::TextObject* text_obj, transform::NoRotationTransfo
   transform->pos = shrooms::screen::center_to_top_left(center, size);
 }
 
+inline void clear_line(text::TextObject* text_obj) {
+  if (text_obj) text_obj->text.clear();
+}
+
 inline void set_marker_center(const glm::vec2& center_px) {
   if (!marker_transform) return;
   const glm::vec2 size{marker_radius * 2.0f, marker_radius * 2.0f};
@@ -628,7 +632,7 @@ inline void spawn_shoot_practice_target(const std::string& feedback = "") {
   stage_entity_a = spawn_shoot_mukhomor_target(center);
   ++shoot_spawn_index;
   update_line(hint_text, hint_transform,
-              "Shoot three mukhomors: " + std::to_string(shoot_practice_shots) +
+              "Shoot three mukhomors with W: " + std::to_string(shoot_practice_shots) +
                   "/" + std::to_string(kPracticeTarget) + "." +
                   (feedback.empty() ? "" : ("  " + feedback)),
               hint_font_px(), kHintCenterNorm);
@@ -694,7 +698,7 @@ inline void start_recipe_countdown() {
   recipe_intro_countdown_started = true;
   clear_recipe_preview();
   scoreboard::animate_to_layout(scoreboard::LayoutState::Corner, kRecipePreviewSeconds);
-  update_line(hint_text, hint_transform, "Get ready.", hint_font_px(), kHintCenterNorm);
+  // update_line(hint_text, hint_transform, "Get ready.", hint_font_px(), kHintCenterNorm);
   pause_main_scene(true);
   countdown::start("main", 3, []() {
     pause_main_scene(false);
@@ -703,7 +707,7 @@ inline void start_recipe_countdown() {
   });
 }
 
-inline void enter_recipe_intro_stage(const std::string& feedback = "") {
+inline void enter_recipe_intro_stage(const std::string& = "") {
   clear_stage_entities();
   player::reset_familiars();
   recipe_good_catches = 0;
@@ -713,10 +717,7 @@ inline void enter_recipe_intro_stage(const std::string& feedback = "") {
   show_tutorial_recipe_board();
   scoreboard::set_layout(scoreboard::LayoutState::CenterIntro);
   spawn_recipe_previews();
-  update_line(hint_text, hint_transform,
-              "Recipe: catch 2 borovik and keep mukhomor at 0." +
-                  (feedback.empty() ? "" : ("  " + feedback)),
-              hint_font_px(), kHintCenterNorm);
+  clear_line(hint_text);
 }
 
 inline void enter_recipe_scenario_stage() {
@@ -824,8 +825,7 @@ inline void set_stage(Stage next, const std::string& feedback) {
       break;
     }
     case Stage::RecipeIntro: {
-      update_line(title_text, title_transform, "Tutorial: Recipe", title_font_px(),
-                  kTitleCenterNorm);
+      clear_line(title_text);
       enter_recipe_intro_stage(feedback);
       break;
     }
