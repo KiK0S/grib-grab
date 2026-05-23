@@ -33,9 +33,9 @@ namespace score_hud {
 struct Config {
   glm::vec2 panel_reference_size = glm::vec2(0.0f, 0.0f);
   glm::vec2 face_reference_size = glm::vec2(0.0f, 0.0f);
-  glm::vec2 face_offset = glm::vec2(-0.05f, -0.035f);
-  glm::vec2 score_offset = glm::vec2(-0.005f, -0.070f);
-  glm::vec2 lives_offset = glm::vec2(0.0f, 0.037f);
+  glm::vec2 face_offset = glm::vec2(0.0f, 0.0f);
+  glm::vec2 score_offset = glm::vec2(0.0f, 0.0f);
+  glm::vec2 lives_offset = glm::vec2(0.0f, 0.0f);
   float score_font_px = 20.0f;
   glm::vec4 score_color = glm::vec4(1.0f);
   float intro_slide_duration = 0.65f;
@@ -45,9 +45,14 @@ struct Config {
 
 inline constexpr size_t kMaxLifeHearts = 3;
 inline constexpr size_t kMaxBatIcons = 3;
-inline constexpr float kBatRowWidthFraction = 0.80f;
-inline constexpr float kBatRowCenterYFraction = 0.86f;
-inline constexpr float kBatGapToIconWidth = 0.12f;
+inline constexpr float kScoreCenterYFraction = 0.17f;
+inline constexpr float kResourceRowCenterYFraction = 0.37f;
+inline constexpr float kFaceCenterXFraction = 0.50f;
+inline constexpr float kFaceCenterYFraction = 0.65f;
+inline constexpr float kHeartWidthFraction = 0.024f;
+inline constexpr float kResourceGapToHeartWidth = 0.18f;
+inline constexpr float kBatRowMaxWidthFraction = 0.17f;
+inline constexpr float kBatHeightToHeartHeight = 0.82f;
 
 inline ecs::Entity* face_icon = nullptr;
 inline ecs::Entity* panel = nullptr;
@@ -107,6 +112,10 @@ inline glm::vec2 panel_center_px() {
   return top_left + panel_size_px() * 0.5f;
 }
 
+inline glm::vec2 panel_top_left_px() {
+  return shrooms::screen::norm_to_pixels(panel_top_left_norm());
+}
+
 inline glm::vec2 panel_center_norm() {
   const glm::vec2 size = panel_size_px();
   const glm::vec2 top_left_norm = panel_top_left_norm();
@@ -116,25 +125,67 @@ inline glm::vec2 panel_center_norm() {
   };
 }
 
-inline glm::vec2 face_center_px() {
-  return shrooms::screen::norm_to_pixels(panel_center_norm() + config.face_offset) +
-         hud_offset_px;
+inline glm::vec2 face_size_px() {
+  const glm::vec2 ref_size =
+      resolve_reference_size(config.face_reference_size, "face_mini_1", 24.0f);
+  return shrooms::texture_sizing::from_reference_size(ref_size);
+}
+
+inline glm::vec2 heart_size_px() {
+  const float heart_width =
+      shrooms::screen::scale_to_pixels(glm::vec2{kHeartWidthFraction, 0.0f}).x;
+  return shrooms::texture_sizing::from_width_px("heart", heart_width);
+}
+
+inline glm::vec2 bat_size_px() {
+  const glm::vec2 heart_size = heart_size_px();
+  const float aspect = std::max(0.1f, shrooms::texture_sizing::aspect_ratio("famiriar"));
+  const float target_width = heart_size.y * kBatHeightToHeartHeight * aspect;
+  const float max_width = panel_size_px().x * kBatRowMaxWidthFraction;
+  const float bat_width = std::max(11.0f, std::min(max_width, target_width));
+  return shrooms::texture_sizing::from_width_px("famiriar", bat_width);
+}
+
+inline float resource_row_gap_px(const glm::vec2& heart_size) {
+  return std::max(2.0f, heart_size.x * kResourceGapToHeartWidth);
+}
+
+inline float resource_row_width_px(const glm::vec2& heart_size,
+                                   const glm::vec2& bat_size,
+                                   float gap) {
+  return heart_size.x * static_cast<float>(kMaxLifeHearts) +
+         bat_size.x * static_cast<float>(kMaxBatIcons) +
+         gap * static_cast<float>(kMaxLifeHearts + kMaxBatIcons - 1);
 }
 
 inline glm::vec2 score_anchor_px() {
-  return panel_center_px() + shrooms::screen::scale_to_pixels(config.score_offset) +
+  const glm::vec2 top_left = panel_top_left_px();
+  const glm::vec2 size = panel_size_px();
+  return top_left + glm::vec2{size.x * 0.5f, size.y * kScoreCenterYFraction} +
+         shrooms::screen::scale_to_pixels(config.score_offset) + hud_offset_px;
+}
+
+inline glm::vec2 face_center_px() {
+  const glm::vec2 top_left = panel_top_left_px();
+  const glm::vec2 size = panel_size_px();
+  return top_left + glm::vec2{size.x * kFaceCenterXFraction,
+                              size.y * kFaceCenterYFraction} +
+         shrooms::screen::scale_to_pixels(config.face_offset) +
          hud_offset_px;
 }
 
 inline glm::vec2 lives_anchor_px() {
-  return score_anchor_px() + shrooms::screen::scale_to_pixels(config.lives_offset);
+  const glm::vec2 top_left = panel_top_left_px();
+  const glm::vec2 size = panel_size_px();
+  return top_left + glm::vec2{size.x * 0.5f, size.y * kResourceRowCenterYFraction} +
+         shrooms::screen::scale_to_pixels(config.lives_offset) + hud_offset_px;
 }
 
-inline glm::vec2 bats_anchor_px() {
-  const glm::vec2 panel_top_left = shrooms::screen::norm_to_pixels(panel_top_left_norm());
-  const glm::vec2 size = panel_size_px();
-  return panel_top_left + glm::vec2{size.x * 0.5f, size.y * kBatRowCenterYFraction} +
-         hud_offset_px;
+inline glm::vec2 resource_row_start_px(const glm::vec2& heart_size,
+                                       const glm::vec2& bat_size,
+                                       float gap) {
+  const float total_width = resource_row_width_px(heart_size, bat_size, gap);
+  return lives_anchor_px() - glm::vec2{total_width * 0.5f, 0.0f};
 }
 
 inline void update_score_layout() {
@@ -147,13 +198,10 @@ inline void update_score_layout() {
 }
 
 inline void update_lives_layout() {
-  const float heart_width =
-      shrooms::screen::scale_to_pixels(glm::vec2{0.024f, 0.0f}).x;
-  const glm::vec2 heart_size = shrooms::texture_sizing::from_width_px("heart", heart_width);
-  const float gap = std::max(2.0f, heart_width * 0.18f);
-  const float total_width =
-      heart_size.x * static_cast<float>(kMaxLifeHearts) + gap * static_cast<float>(kMaxLifeHearts - 1);
-  const glm::vec2 row_start = lives_anchor_px() - glm::vec2{total_width * 0.5f, 0.0f};
+  const glm::vec2 heart_size = heart_size_px();
+  const glm::vec2 bat_size = bat_size_px();
+  const float gap = resource_row_gap_px(heart_size);
+  const glm::vec2 row_start = resource_row_start_px(heart_size, bat_size, gap);
   const int visible_hearts =
       std::clamp(current_lives, 0, static_cast<int>(kMaxLifeHearts));
 
@@ -176,22 +224,20 @@ inline void update_lives_layout() {
 }
 
 inline void update_bat_layout() {
-  const float target_width = panel_size_px().x * kBatRowWidthFraction;
-  const float bat_width =
-      std::max(11.0f, target_width /
-                          (static_cast<float>(kMaxBatIcons) +
-                           kBatGapToIconWidth * static_cast<float>(kMaxBatIcons - 1)));
-  const glm::vec2 bat_size = shrooms::texture_sizing::from_width_px("famiriar", bat_width);
-  const float gap = std::max(2.0f, bat_width * kBatGapToIconWidth);
-  const float total_width =
-      bat_size.x * static_cast<float>(kMaxBatIcons) + gap * static_cast<float>(kMaxBatIcons - 1);
-  const glm::vec2 row_start = bats_anchor_px() - glm::vec2{total_width * 0.5f, 0.0f};
+  const glm::vec2 heart_size = heart_size_px();
+  const glm::vec2 bat_size = bat_size_px();
+  const float gap = resource_row_gap_px(heart_size);
+  const glm::vec2 row_start = resource_row_start_px(heart_size, bat_size, gap);
+  const float bat_group_start_x =
+      heart_size.x * static_cast<float>(kMaxLifeHearts) +
+      gap * static_cast<float>(kMaxLifeHearts);
   const int ready_bats = std::clamp(current_ready_bats, 0, static_cast<int>(kMaxBatIcons));
 
   for (size_t i = 0; i < kMaxBatIcons; ++i) {
     if (bat_icon_transforms[i]) {
       const glm::vec2 center =
-          row_start + glm::vec2{bat_size.x * 0.5f + static_cast<float>(i) * (bat_size.x + gap),
+          row_start + glm::vec2{bat_group_start_x + bat_size.x * 0.5f +
+                                    static_cast<float>(i) * (bat_size.x + gap),
                                 0.0f};
       bat_icon_transforms[i]->pos = shrooms::screen::center_to_top_left(center, bat_size);
     }
@@ -210,17 +256,15 @@ inline void update_bat_layout() {
 }
 
 inline void update_panel_layout() {
-  const glm::vec2 panel_top_left_px = shrooms::screen::norm_to_pixels(panel_top_left_norm());
+  const glm::vec2 panel_top_left = panel_top_left_px();
   const glm::vec2 panel_size = panel_size_px();
-  const glm::vec2 panel_center = panel_top_left_px + panel_size * 0.5f + hud_offset_px;
+  const glm::vec2 panel_center = panel_top_left + panel_size * 0.5f + hud_offset_px;
 
   if (panel_transform) {
     panel_transform->pos = shrooms::screen::center_to_top_left(panel_center, panel_size);
   }
   if (face_transform) {
-    const glm::vec2 ref_size =
-        resolve_reference_size(config.face_reference_size, "face_mini_1", 24.0f);
-    const glm::vec2 size = shrooms::texture_sizing::from_reference_size(ref_size);
+    const glm::vec2 size = face_size_px();
     face_transform->pos = shrooms::screen::center_to_top_left(face_center_px(), size);
   }
   update_score_layout();
@@ -291,10 +335,9 @@ struct ScoreHudController : public dynamic::DynamicObject {
 inline ScoreHudController controller{};
 
 inline void reset_hud() {
-  const glm::vec2 panel_top_left_px = shrooms::screen::norm_to_pixels(panel_top_left_norm());
+  const glm::vec2 panel_top_left = panel_top_left_px();
   const glm::vec2 panel_size = panel_size_px();
-  const glm::vec2 panel_center = panel_top_left_px + panel_size * 0.5f;
-  const glm::vec2 center_norm = panel_center_norm();
+  const glm::vec2 panel_center = panel_top_left + panel_size * 0.5f;
 
   if (panel) {
     panel->mark_deleted();
@@ -316,12 +359,9 @@ inline void reset_hud() {
   }
   face_icon = arena::create<ecs::Entity>();
   {
-    const glm::vec2 ref_size =
-        resolve_reference_size(config.face_reference_size, "face_mini_1", 24.0f);
-    const glm::vec2 size = shrooms::texture_sizing::from_reference_size(ref_size);
-    const glm::vec2 center = shrooms::screen::norm_to_pixels(center_norm + config.face_offset);
+    const glm::vec2 size = face_size_px();
     face_transform = arena::create<transform::NoRotationTransform>();
-    face_transform->pos = shrooms::screen::center_to_top_left(center + hud_offset_px, size);
+    face_transform->pos = shrooms::screen::center_to_top_left(face_center_px(), size);
     face_icon->add(face_transform);
     face_icon->add(arena::create<layers::ConstLayer>(config.layer));
     const engine::TextureId frame_1 = engine::resources::register_texture("face_mini_1");
