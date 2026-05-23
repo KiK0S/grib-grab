@@ -45,12 +45,13 @@ struct Config {
 
 inline constexpr size_t kMaxLifeHearts = 3;
 inline constexpr size_t kMaxBatIcons = 3;
-inline constexpr float kScoreCenterYFraction = 0.17f;
-inline constexpr float kResourceRowCenterYFraction = 0.37f;
+inline constexpr float kTopRowCenterYFraction = 0.22f;
+inline constexpr float kHeartRowCenterYFraction = 0.40f;
 inline constexpr float kFaceCenterXFraction = 0.50f;
-inline constexpr float kFaceCenterYFraction = 0.65f;
+inline constexpr float kFaceCenterYFraction = 0.70f;
 inline constexpr float kHeartWidthFraction = 0.024f;
-inline constexpr float kResourceGapToHeartWidth = 0.18f;
+inline constexpr float kRowGapToHeartWidth = 0.18f;
+inline constexpr float kScoreBatGapToHeartWidth = 0.42f;
 inline constexpr float kBatRowMaxWidthFraction = 0.17f;
 inline constexpr float kBatHeightToHeartHeight = 0.82f;
 
@@ -66,6 +67,7 @@ inline std::array<ecs::Entity*, kMaxLifeHearts> life_heart_entities{};
 inline std::array<transform::NoRotationTransform*, kMaxLifeHearts> life_heart_transforms{};
 inline std::array<render_system::SpriteRenderable*, kMaxLifeHearts> life_heart_sprites{};
 inline std::array<hidden::HiddenObject*, kMaxLifeHearts> life_heart_hidden{};
+inline std::array<color::OneColor*, kMaxLifeHearts> life_heart_colors{};
 inline std::array<ecs::Entity*, kMaxBatIcons> bat_icon_entities{};
 inline std::array<transform::NoRotationTransform*, kMaxBatIcons> bat_icon_transforms{};
 inline std::array<render_system::SpriteRenderable*, kMaxBatIcons> bat_icon_sprites{};
@@ -146,23 +148,47 @@ inline glm::vec2 bat_size_px() {
   return shrooms::texture_sizing::from_width_px("famiriar", bat_width);
 }
 
-inline float resource_row_gap_px(const glm::vec2& heart_size) {
-  return std::max(2.0f, heart_size.x * kResourceGapToHeartWidth);
+inline float row_gap_px(const glm::vec2& heart_size) {
+  return std::max(2.0f, heart_size.x * kRowGapToHeartWidth);
 }
 
-inline float resource_row_width_px(const glm::vec2& heart_size,
-                                   const glm::vec2& bat_size,
-                                   float gap) {
+inline float score_bat_gap_px(const glm::vec2& heart_size) {
+  return std::max(4.0f, heart_size.x * kScoreBatGapToHeartWidth);
+}
+
+inline glm::vec2 row_center_px(float y_fraction) {
+  const glm::vec2 top_left = panel_top_left_px();
+  const glm::vec2 size = panel_size_px();
+  return top_left + glm::vec2{size.x * 0.5f, size.y * y_fraction} + hud_offset_px;
+}
+
+inline glm::vec2 score_text_size_px(std::string_view value) {
+  const auto layout =
+      engine::text::layout_text(std::string(value), 0.0f, 0.0f, config.score_font_px);
+  return glm::vec2{layout.width, layout.height};
+}
+
+inline float bat_row_width_px(const glm::vec2& bat_size, float gap) {
+  return bat_size.x * static_cast<float>(kMaxBatIcons) +
+         gap * static_cast<float>(kMaxBatIcons - 1);
+}
+
+inline float heart_row_width_px(const glm::vec2& heart_size, float gap) {
   return heart_size.x * static_cast<float>(kMaxLifeHearts) +
-         bat_size.x * static_cast<float>(kMaxBatIcons) +
-         gap * static_cast<float>(kMaxLifeHearts + kMaxBatIcons - 1);
+         gap * static_cast<float>(kMaxLifeHearts - 1);
 }
 
 inline glm::vec2 score_anchor_px() {
-  const glm::vec2 top_left = panel_top_left_px();
-  const glm::vec2 size = panel_size_px();
-  return top_left + glm::vec2{size.x * 0.5f, size.y * kScoreCenterYFraction} +
-         shrooms::screen::scale_to_pixels(config.score_offset) + hud_offset_px;
+  const std::string value = score_text ? score_text->text : std::to_string(current_score);
+  const glm::vec2 heart_size = heart_size_px();
+  const glm::vec2 bat_size = bat_size_px();
+  const float icon_gap = row_gap_px(heart_size);
+  const float score_gap = score_bat_gap_px(heart_size);
+  const glm::vec2 score_size = score_text_size_px(value);
+  const float total_width = score_size.x + score_gap + bat_row_width_px(bat_size, icon_gap);
+  return row_center_px(kTopRowCenterYFraction) -
+         glm::vec2{total_width * 0.5f - score_size.x * 0.5f, 0.0f} +
+         shrooms::screen::scale_to_pixels(config.score_offset);
 }
 
 inline glm::vec2 face_center_px() {
@@ -175,17 +201,25 @@ inline glm::vec2 face_center_px() {
 }
 
 inline glm::vec2 lives_anchor_px() {
-  const glm::vec2 top_left = panel_top_left_px();
-  const glm::vec2 size = panel_size_px();
-  return top_left + glm::vec2{size.x * 0.5f, size.y * kResourceRowCenterYFraction} +
-         shrooms::screen::scale_to_pixels(config.lives_offset) + hud_offset_px;
+  return row_center_px(kHeartRowCenterYFraction) +
+         shrooms::screen::scale_to_pixels(config.lives_offset);
 }
 
-inline glm::vec2 resource_row_start_px(const glm::vec2& heart_size,
-                                       const glm::vec2& bat_size,
-                                       float gap) {
-  const float total_width = resource_row_width_px(heart_size, bat_size, gap);
+inline glm::vec2 heart_row_start_px(const glm::vec2& heart_size, float gap) {
+  const float total_width = heart_row_width_px(heart_size, gap);
   return lives_anchor_px() - glm::vec2{total_width * 0.5f, 0.0f};
+}
+
+inline glm::vec2 bat_row_start_px(const glm::vec2& bat_size, float icon_gap) {
+  const std::string value = score_text ? score_text->text : std::to_string(current_score);
+  const glm::vec2 heart_size = heart_size_px();
+  const glm::vec2 score_size = score_text_size_px(value);
+  const float score_gap = score_bat_gap_px(heart_size);
+  const float total_width = score_size.x + score_gap + bat_row_width_px(bat_size, icon_gap);
+  return row_center_px(kTopRowCenterYFraction) -
+         glm::vec2{total_width * 0.5f, 0.0f} +
+         glm::vec2{score_size.x + score_gap, 0.0f} +
+         shrooms::screen::scale_to_pixels(config.score_offset);
 }
 
 inline void update_score_layout() {
@@ -199,9 +233,8 @@ inline void update_score_layout() {
 
 inline void update_lives_layout() {
   const glm::vec2 heart_size = heart_size_px();
-  const glm::vec2 bat_size = bat_size_px();
-  const float gap = resource_row_gap_px(heart_size);
-  const glm::vec2 row_start = resource_row_start_px(heart_size, bat_size, gap);
+  const float gap = row_gap_px(heart_size);
+  const glm::vec2 row_start = heart_row_start_px(heart_size, gap);
   const int visible_hearts =
       std::clamp(current_lives, 0, static_cast<int>(kMaxLifeHearts));
 
@@ -218,7 +251,13 @@ inline void update_lives_layout() {
       life_heart_sprites[i]->uploaded = false;
     }
     if (life_heart_hidden[i]) {
-      life_heart_hidden[i]->set_visible(lives_visible && static_cast<int>(i) < visible_hearts);
+      life_heart_hidden[i]->set_visible(lives_visible);
+    }
+    if (life_heart_colors[i]) {
+      const bool filled = static_cast<int>(i) < visible_hearts;
+      life_heart_colors[i]->color =
+          filled ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
+                 : glm::vec4{0.34f, 0.34f, 0.38f, 0.82f};
     }
   }
 }
@@ -226,17 +265,14 @@ inline void update_lives_layout() {
 inline void update_bat_layout() {
   const glm::vec2 heart_size = heart_size_px();
   const glm::vec2 bat_size = bat_size_px();
-  const float gap = resource_row_gap_px(heart_size);
-  const glm::vec2 row_start = resource_row_start_px(heart_size, bat_size, gap);
-  const float bat_group_start_x =
-      heart_size.x * static_cast<float>(kMaxLifeHearts) +
-      gap * static_cast<float>(kMaxLifeHearts);
+  const float gap = row_gap_px(heart_size);
+  const glm::vec2 row_start = bat_row_start_px(bat_size, gap);
   const int ready_bats = std::clamp(current_ready_bats, 0, static_cast<int>(kMaxBatIcons));
 
   for (size_t i = 0; i < kMaxBatIcons; ++i) {
     if (bat_icon_transforms[i]) {
       const glm::vec2 center =
-          row_start + glm::vec2{bat_group_start_x + bat_size.x * 0.5f +
+          row_start + glm::vec2{bat_size.x * 0.5f +
                                     static_cast<float>(i) * (bat_size.x + gap),
                                 0.0f};
       bat_icon_transforms[i]->pos = shrooms::screen::center_to_top_left(center, bat_size);
@@ -275,6 +311,7 @@ inline void update_panel_layout() {
 inline void set_score(int score_value) {
   current_score = score_value;
   update_score_layout();
+  update_bat_layout();
 }
 
 inline int score() { return current_score; }
@@ -400,6 +437,8 @@ inline void reset_hud() {
     const glm::vec2 size = shrooms::texture_sizing::from_width_px("heart", 18.0f);
     life_heart_sprites[i] = arena::create<render_system::SpriteRenderable>(tex_id, size);
     life_heart_entities[i]->add(life_heart_sprites[i]);
+    life_heart_colors[i] = arena::create<color::OneColor>(glm::vec4{1.0f});
+    life_heart_entities[i]->add(life_heart_colors[i]);
     life_heart_hidden[i] = arena::create<hidden::HiddenObject>();
     life_heart_entities[i]->add(life_heart_hidden[i]);
     life_heart_entities[i]->add(arena::create<scene::SceneObject>("main"));
