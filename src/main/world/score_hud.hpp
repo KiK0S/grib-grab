@@ -53,9 +53,8 @@ inline constexpr float kFaceCenterXFraction = 0.50f;
 inline constexpr float kFaceCenterYFraction = 0.70f;
 inline constexpr float kHeartWidthFraction = 0.024f;
 inline constexpr float kRowGapToHeartWidth = 0.18f;
-inline constexpr float kScoreBatGapToHeartWidth = 0.42f;
-inline constexpr float kBatRowMaxWidthFraction = 0.17f;
-inline constexpr float kBatHeightToHeartHeight = 0.82f;
+inline constexpr float kBatRowWidthFraction = 0.94f;
+inline constexpr float kBatRowGapFraction = 0.015f;
 
 inline ecs::Entity* face_icon = nullptr;
 inline ecs::Entity* panel = nullptr;
@@ -144,11 +143,12 @@ inline glm::vec2 heart_size_px() {
 }
 
 inline glm::vec2 bat_size_px() {
-  const glm::vec2 heart_size = heart_size_px();
-  const float aspect = std::max(0.1f, shrooms::texture_sizing::aspect_ratio("bat_face"));
-  const float target_width = heart_size.y * kBatHeightToHeartHeight * aspect;
-  const float max_width = panel_size_px().x * kBatRowMaxWidthFraction;
-  const float bat_width = std::max(11.0f, std::min(max_width, target_width));
+  const glm::vec2 panel_size = panel_size_px();
+  const float row_width = panel_size.x * kBatRowWidthFraction;
+  const float gap = std::max(4.0f, panel_size.x * kBatRowGapFraction);
+  const float icon_count = static_cast<float>(kMaxBatIcons);
+  const float bat_width =
+      std::max(1.0f, (row_width - gap * (icon_count - 1.0f)) / icon_count);
   return shrooms::texture_sizing::from_width_px("bat_face", bat_width);
 }
 
@@ -156,8 +156,8 @@ inline float row_gap_px(const glm::vec2& heart_size) {
   return std::max(2.0f, heart_size.x * kRowGapToHeartWidth);
 }
 
-inline float score_bat_gap_px(const glm::vec2& heart_size) {
-  return std::max(4.0f, heart_size.x * kScoreBatGapToHeartWidth);
+inline float bat_row_gap_px() {
+  return std::max(4.0f, panel_size_px().x * kBatRowGapFraction);
 }
 
 inline glm::vec2 row_center_px(float y_fraction) {
@@ -217,9 +217,8 @@ inline void update_score_layout() {}
 inline void update_lives_layout() {}
 
 inline void update_bat_layout() {
-  const glm::vec2 heart_size = heart_size_px();
   const glm::vec2 bat_size = bat_size_px();
-  const float gap = row_gap_px(heart_size);
+  const float gap = bat_row_gap_px();
   const glm::vec2 row_start = bat_row_start_px(bat_size, gap);
   const int ready_bats = std::clamp(current_ready_bats, 0, static_cast<int>(kMaxBatIcons));
 
