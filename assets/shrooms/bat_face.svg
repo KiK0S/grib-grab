@@ -1,10 +1,17 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="180" height="154" viewBox="0 0 180 154" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M19 37L11 83L42 114L70 145H111L140 114L169 83L160 37L131 52L118 45H62L49 52L19 37Z" fill="#F052C6"/>
-  <path d="M58 70L81 82L73 58L58 70Z" fill="#050505"/>
-  <path d="M122 70L99 82L107 58L122 70Z" fill="#050505"/>
-  <path d="M90 49L76 89H104L90 49Z" fill="#050505"/>
-  <path d="M49 94H132L118 120L104 98L90 124L76 98L62 120L49 94Z" fill="#050505"/>
-  <path d="M66 97H80L75 115L66 97Z" fill="white"/>
-  <path d="M101 97H116L106 115L101 97Z" fill="white"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Created with Linearity Curve (http://linearity.io/curve) -->
+<svg height="100%" stroke-miterlimit="10" style="fill-rule:nonzero;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;" version="1.1" viewBox="64.0258 39.2018 180.077 154.943" width="100%" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:vectornator="http://vectornator.io" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs/>
+<g id="Layer">
+<g opacity="1">
+<path d="M142.496 192.037L169.569 194.144L234.102 139.667L218.981 111.313L244.102 92.563L232.388 39.2018L200.675 56.5381L180.678 84.6415L131.302 84.6415L121.08 57.1016L77.2463 39.2018L64.0258 92.563L92.4738 107.629L84.7293 153.855L142.496 192.037Z" fill="#fd6ec8" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M157.351 138.676L207.529 129.03L173.635 161.257L138.656 162.77L110.939 131.42L157.351 138.676Z" fill="#000000" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M165.999 136.958L174.494 154.299L182.282 133.886L165.999 136.958Z" fill="#ffffff" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M131.773 134.689L140.263 156.106L148.052 137.209L131.773 134.689Z" fill="#ffffff" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M139.033 116.673L130.578 104.268L112.929 97.2255L120.365 113.356L139.033 116.673Z" fill="#000000" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M144.731 129.03L149.95 103.221L155.397 88.7266L162.657 100.883L169.9 128.117L144.731 129.03Z" fill="#000000" fill-rule="nonzero" opacity="1" stroke="none"/>
+<path d="M176.651 117.993L182.69 103.281L198.869 95.9293L193.258 109.631L176.651 117.993Z" fill="#000000" fill-rule="nonzero" opacity="1" stroke="none"/>
+</g>
+</g>
 </svg>

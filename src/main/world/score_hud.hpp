@@ -54,7 +54,7 @@ inline constexpr float kFaceCenterYFraction = 0.70f;
 inline constexpr float kHeartWidthFraction = 0.024f;
 inline constexpr float kRowGapToHeartWidth = 0.18f;
 inline constexpr float kBatRowWidthFraction = 0.94f;
-inline constexpr float kBatRowGapFraction = 0.015f;
+inline constexpr float kBatRowGapFraction = 0.1f;
 
 inline ecs::Entity* face_icon = nullptr;
 inline ecs::Entity* panel = nullptr;
