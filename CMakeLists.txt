@@ -112,6 +112,12 @@ else()
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${SHROOMS_CUSTOM_SHADER_DIR}
     $<TARGET_FILE_DIR:shrooms>/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${SHROOMS_SHADER_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${SHROOMS_CUSTOM_SHADER_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders
   )
 endif()
 
