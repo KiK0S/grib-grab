@@ -28,6 +28,7 @@
 
 #include "scoreboard.hpp"
 #include "score_hud.hpp"
+#include "panel_occlusion_fx.hpp"
 #include "shrooms_assets.hpp"
 #include "game_audio.hpp"
 #include "shrooms_screen.hpp"
@@ -1027,6 +1028,7 @@ inline std::string default_spawn_type() {
 }
 
 inline void on_mushroom_spawned(const std::string& type, ecs::Entity* entity) {
+  panel_occlusion_fx::attach_mushroom_mask(entity);
   if (tutorial_spawn_hook) {
     tutorial_spawn_hook(type, entity);
   }

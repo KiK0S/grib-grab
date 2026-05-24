@@ -13,6 +13,13 @@ shake_pad_px = 18
 tint_layer = 30
 glow_layer = -1
 
+[shrooms.panel_occlusion]
+edge_radius_px = 3
+edge_strength = 0.62
+pulse_speed = 5.5
+wave_scale = 85
+edge_color = [1, 0.92, 0.56, 1]
+
 [shrooms.ambient_layers]
 color = [0.3, 0.2, 0.45, 0.22]
 lifetime = 2.4
@@ -90,13 +97,22 @@ menu_layer = 101
 button_layer = 102
 text_layer = 103
 
-[shrooms.lives]
-horizontal_spacing = 0.05
-hearts_center_offset_x = 0
-hearts_center_offset_y = -0.04
-layer = 1
+[shrooms.score_hud]
+score_offset_x = 0
+score_offset_y = 0
+lives_offset_x = 0
+lives_offset_y = 0
+score_font_px = 20
+face_offset_x = 0
+face_offset_y = 0
+layer = 90
 
 [shrooms.scoreboard]
 row_spacing = 0.165
+row_offset_x_px = 8
+row_icon_gap_px = 10
+panel_min_height_px = 142
+panel_vertical_padding_px = 48
 text_font_px = 20
-layer = 1
+score_font_px = 20
+layer = 90

@@ -23,6 +23,7 @@
 #include "systems/transformation/transform_object.hpp"
 #include "engine/geometry_builder.h"
 
+#include "panel_occlusion_fx.hpp"
 #include "shrooms_screen.hpp"
 #include "shrooms_texture_sizing.hpp"
 
@@ -33,6 +34,8 @@ struct Config {
   float row_spacing = 0.115f;
   float row_offset_x_px = 8.0f;
   float row_icon_gap_px = 10.0f;
+  float panel_min_height_px = 142.0f;
+  float panel_vertical_padding_px = 48.0f;
   glm::vec2 center_intro_norm = glm::vec2{0.0f, -0.18f};
   float default_move_duration = 0.65f;
   float shake_duration = 0.45f;
@@ -41,7 +44,7 @@ struct Config {
   float text_font_px = 20.0f;
   float score_font_px = 20.0f;
   glm::vec4 text_color = glm::vec4(1.0f);
-  int layer = 1;
+  int layer = 90;
 } config;
 
 enum class LayoutState {
@@ -72,6 +75,8 @@ inline std::vector<std::pair<std::string, int>> current_recipe{};
 inline std::string objective_word{};
 inline ecs::Entity* panel = nullptr;
 inline transform::NoRotationTransform* panel_transform = nullptr;
+inline render_system::SpriteRenderable* panel_sprite = nullptr;
+inline panel_occlusion_fx::AlphaMaskRenderable* panel_mask = nullptr;
 inline ecs::Entity* score_text_entity = nullptr;
 inline transform::NoRotationTransform* score_text_transform = nullptr;
 inline text::TextObject* score_text = nullptr;
@@ -96,6 +101,12 @@ inline float shake_duration = 0.0f;
 inline float active_shake_amplitude_px = 0.0f;
 inline glm::vec2 shake_offset_px{0.0f, 0.0f};
 
+inline float layout_row_spacing_px();
+inline size_t layout_row_count();
+inline glm::vec2 heart_size_px();
+inline std::string icon_texture_name(const std::string& name);
+inline std::string recipe_score_text_value(const Entry& entry);
+
 inline float clamp01(float value) {
   return std::min(1.0f, std::max(0.0f, value));
 }
@@ -111,8 +122,53 @@ inline glm::vec2 panel_reference_size() {
   return shrooms::texture_sizing::reference_size_from_width("menu_scoreboard", 64.0f);
 }
 
-inline glm::vec2 panel_size_px() {
+inline glm::vec2 base_panel_size_px() {
   return shrooms::texture_sizing::from_reference_size(panel_reference_size());
+}
+
+inline glm::vec2 score_text_size_px() {
+  const std::string value = std::to_string(current_score);
+  const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, config.score_font_px);
+  return glm::vec2{layout.width, layout.height};
+}
+
+inline float recipe_icon_height_px(const std::string& name) {
+  const std::string icon_name = icon_texture_name(name);
+  const float icon_width =
+      shrooms::screen::scale_to_pixels(glm::vec2{config.icon_scale.x, 0.0f}).x;
+  return shrooms::texture_sizing::from_width_px(icon_name, icon_width).y;
+}
+
+inline float recipe_text_height_px(const std::pair<std::string, int>& item) {
+  Entry entry{};
+  entry.name = item.first;
+  entry.target = item.second;
+  const std::string value = recipe_score_text_value(entry);
+  const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, config.text_font_px);
+  return layout.height;
+}
+
+inline float max_row_height_px() {
+  float height = score_text_size_px().y;
+  if (hearts_visible) {
+    height = std::max(height, heart_size_px().y);
+  }
+  for (const auto& item : current_recipe) {
+    height = std::max(height, recipe_icon_height_px(item.first));
+    height = std::max(height, recipe_text_height_px(item));
+  }
+  return std::max(height, 1.0f);
+}
+
+inline glm::vec2 panel_size_px() {
+  const glm::vec2 base = base_panel_size_px();
+  const size_t rows = std::max<size_t>(1, layout_row_count());
+  const float row_span = layout_row_spacing_px() * static_cast<float>(rows - 1);
+  const float content_height = row_span + max_row_height_px();
+  const float height =
+      std::max(config.panel_min_height_px,
+               content_height + config.panel_vertical_padding_px * 2.0f);
+  return glm::vec2{base.x, height};
 }
 
 inline glm::vec2 corner_panel_center_norm() {
@@ -132,6 +188,11 @@ inline glm::vec2 target_center_norm(LayoutState state) {
       return config.center_intro_norm;
   }
   return corner_panel_center_norm();
+}
+
+inline void refresh_static_panel_target() {
+  if (animation_active || layout_state == LayoutState::CenterIntro) return;
+  current_panel_center_norm = target_center_norm(layout_state);
 }
 
 inline glm::vec2 panel_center_norm() {
@@ -251,7 +312,10 @@ inline void reset_panel() {
   panel->add(panel_transform);
   panel->add(arena::create<layers::ConstLayer>(config.layer));
   const engine::TextureId tex_id = engine::resources::register_texture("menu_scoreboard");
-  panel->add(arena::create<render_system::SpriteRenderable>(tex_id, size));
+  panel_sprite = arena::create<render_system::SpriteRenderable>(tex_id, size);
+  panel->add(panel_sprite);
+  panel_mask = panel_occlusion_fx::attach_alpha_mask(
+      panel, tex_id, size, panel_occlusion_fx::kPanelMaskTarget);
   panel->add(arena::create<scene::SceneObject>("main"));
 }
 
@@ -261,6 +325,8 @@ inline void hide_panel() {
   }
   panel = nullptr;
   panel_transform = nullptr;
+  panel_sprite = nullptr;
+  panel_mask = nullptr;
   destroy_score_visual();
   destroy_heart_visuals();
 }
@@ -268,6 +334,17 @@ inline void hide_panel() {
 inline void ensure_panel() {
   if (!panel) {
     reset_panel();
+  }
+}
+
+inline void sync_panel_size(const glm::vec2& size) {
+  if (panel_sprite) {
+    panel_sprite->size = size;
+    panel_sprite->geometry = engine::geometry::make_quad(size.x, size.y);
+    panel_sprite->uploaded = false;
+  }
+  if (panel_mask && panel_sprite) {
+    panel_mask->set_source(panel_sprite->texture_id, size);
   }
 }
 
@@ -394,6 +471,7 @@ inline void apply_layout() {
 
   if (panel_transform) {
     const glm::vec2 size = panel_size_px();
+    sync_panel_size(size);
     panel_transform->pos = shrooms::screen::center_to_top_left(current_panel_center_px(), size);
   }
 
@@ -447,6 +525,9 @@ inline void init_with_targets(const std::vector<std::pair<std::string, int>>& re
                               std::string task_word = "") {
   objective_word = std::move(task_word);
   current_recipe = recipe;
+  if (!current_recipe.empty()) {
+    hearts_visible = false;
+  }
   status_panel_visible = true;
   layout_state = LayoutState::Corner;
   current_panel_center_norm = target_center_norm(layout_state);
@@ -481,6 +562,7 @@ inline void set_hearts(int hearts_value) {
 
 inline void set_hearts_visible(bool visible) {
   hearts_visible = visible;
+  refresh_static_panel_target();
   apply_layout();
 }
 

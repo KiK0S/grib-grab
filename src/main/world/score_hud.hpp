@@ -25,6 +25,7 @@
 #include "systems/transformation/transform_object.hpp"
 #include "engine/geometry_builder.h"
 
+#include "panel_occlusion_fx.hpp"
 #include "scoreboard.hpp"
 #include "shrooms_screen.hpp"
 #include "shrooms_texture_sizing.hpp"
@@ -41,7 +42,7 @@ struct Config {
   glm::vec4 score_color = glm::vec4(1.0f);
   float intro_slide_duration = 0.65f;
   float intro_slide_pad_px = 18.0f;
-  int layer = 1;
+  int layer = 90;
 } config;
 
 inline constexpr size_t kMaxLifeHearts = 3;
@@ -59,6 +60,8 @@ inline constexpr float kBatHeightToHeartHeight = 0.82f;
 inline ecs::Entity* face_icon = nullptr;
 inline ecs::Entity* panel = nullptr;
 inline transform::NoRotationTransform* panel_transform = nullptr;
+inline render_system::SpriteRenderable* panel_sprite = nullptr;
+inline panel_occlusion_fx::AlphaMaskRenderable* panel_mask = nullptr;
 inline transform::NoRotationTransform* face_transform = nullptr;
 inline ecs::Entity* score_text_entity = nullptr;
 inline transform::NoRotationTransform* score_text_transform = nullptr;
@@ -329,6 +332,8 @@ inline void reset_hud() {
   if (panel) {
     panel->mark_deleted();
   }
+  panel_sprite = nullptr;
+  panel_mask = nullptr;
   panel = arena::create<ecs::Entity>();
   {
     panel_transform = arena::create<transform::NoRotationTransform>();
@@ -337,7 +342,10 @@ inline void reset_hud() {
     panel->add(panel_transform);
     panel->add(arena::create<layers::ConstLayer>(config.layer));
     const engine::TextureId tex_id = engine::resources::register_texture("menu_face");
-    panel->add(arena::create<render_system::SpriteRenderable>(tex_id, panel_size));
+    panel_sprite = arena::create<render_system::SpriteRenderable>(tex_id, panel_size);
+    panel->add(panel_sprite);
+    panel_mask = panel_occlusion_fx::attach_alpha_mask(
+        panel, tex_id, panel_size, panel_occlusion_fx::kPanelMaskTarget);
     panel->add(arena::create<scene::SceneObject>("main"));
   }
 

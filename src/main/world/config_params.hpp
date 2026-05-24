@@ -10,6 +10,7 @@
 #include "game_audio.hpp"
 #include "game_over_sequence.hpp"
 #include "global_fx.hpp"
+#include "panel_occlusion_fx.hpp"
 #include "score_hud.hpp"
 #include "pause_menu.hpp"
 #include "round_transition.hpp"
@@ -66,6 +67,22 @@ inline void register_params() {
   reg.add(fx, "glow_layer", global_fx::config.glow_layer)
       .label("Glow Layer")
       .range(-50.0f, 50.0f, 1.0f);
+
+  auto& panel_fx = reg.group("shrooms/panel_occlusion");
+  reg.add(panel_fx, "edge_radius_px", panel_occlusion_fx::config.edge_radius_px)
+      .label("Edge Radius")
+      .range(0.5f, 8.0f, 0.1f);
+  reg.add(panel_fx, "edge_strength", panel_occlusion_fx::config.edge_strength)
+      .label("Edge Strength")
+      .range(0.0f, 1.5f, 0.01f);
+  reg.add(panel_fx, "pulse_speed", panel_occlusion_fx::config.pulse_speed)
+      .label("Pulse Speed")
+      .range(0.0f, 12.0f, 0.1f);
+  reg.add(panel_fx, "wave_scale", panel_occlusion_fx::config.wave_scale)
+      .label("Wave Scale")
+      .range(0.0f, 180.0f, 1.0f);
+  reg.add(panel_fx, "edge_color", panel_occlusion_fx::config.edge_color)
+      .label("Edge Color");
 
   auto& ambient = reg.group("shrooms/ambient_layers");
   reg.add(ambient, "color", ambient_layers::config.color).label("Color");
@@ -298,6 +315,13 @@ inline void register_params() {
   reg.add(score_group, "row_icon_gap_px", scoreboard::config.row_icon_gap_px)
       .label("Row Icon Gap")
       .range(0.0f, 40.0f, 1.0f);
+  reg.add(score_group, "panel_min_height_px", scoreboard::config.panel_min_height_px)
+      .label("Min Height")
+      .range(80.0f, 320.0f, 1.0f);
+  reg.add(score_group, "panel_vertical_padding_px",
+          scoreboard::config.panel_vertical_padding_px)
+      .label("Vertical Padding")
+      .range(0.0f, 100.0f, 1.0f);
   reg.add(score_group, "text_font_px", scoreboard::config.text_font_px)
       .label("Text Size")
       .range(8.0f, 48.0f, 1.0f);

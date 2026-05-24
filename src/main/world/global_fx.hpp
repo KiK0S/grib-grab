@@ -11,6 +11,7 @@
 #include "glm/glm/vec4.hpp"
 
 #include "ecs/ecs.hpp"
+#include "ecs/context.hpp"
 #include "utils/arena.hpp"
 #include "systems/layer/layered_object.hpp"
 #include "systems/render/render_system.hpp"
@@ -19,6 +20,7 @@
 #include "systems/transformation/transform_object.hpp"
 
 #include "camera_shake.hpp"
+#include "panel_occlusion_fx.hpp"
 #include "shrooms_screen.hpp"
 #include "player.hpp"
 #include "visual_constants.hpp"
@@ -165,7 +167,7 @@ inline void append_post_process(engine::Frame& frame) {
   const int height = shrooms::screen::view_height;
   if (width <= 0 || height <= 0) return;
 
-  frame.plan.targets.reserve(frame.plan.targets.size() + 3);
+  frame.plan.targets.reserve(frame.plan.targets.size() + 5);
   frame.plan.targets.push_back(engine::RenderTargetDesc{
       "shrooms_color", width, height, engine::RenderTargetFormat::RGBA8,
       engine::RenderTargetFilter::Linear});
@@ -175,6 +177,12 @@ inline void append_post_process(engine::Frame& frame) {
   frame.plan.targets.push_back(engine::RenderTargetDesc{
       "shrooms_glow_blur", width, height, engine::RenderTargetFormat::R8,
       engine::RenderTargetFilter::Linear});
+  frame.plan.targets.push_back(engine::RenderTargetDesc{
+      "shrooms_mushroom_mask", width, height, engine::RenderTargetFormat::R8,
+      engine::RenderTargetFilter::Linear});
+  frame.plan.targets.push_back(engine::RenderTargetDesc{
+      "shrooms_panel_mask", width, height, engine::RenderTargetFormat::R8,
+      engine::RenderTargetFilter::Linear});
 
   ensure_post_quad(width, height);
 
@@ -182,19 +190,33 @@ inline void append_post_process(engine::Frame& frame) {
   const engine::Mat4 proj = engine::mat4_ortho(0.0f, static_cast<float>(width),
                                                static_cast<float>(height), 0.0f, -1.0f, 1.0f);
 
-  engine::RenderPass clear_mask{};
-  clear_mask.name = "glow-mask-clear";
-  clear_mask.target = kGlowMaskTarget;
-  clear_mask.clear = true;
-  clear_mask.clear_color = engine::UIColor{0.0f, 0.0f, 0.0f, 0.0f};
+  engine::RenderPass clear_glow_mask{};
+  clear_glow_mask.name = "glow-mask-clear";
+  clear_glow_mask.target = kGlowMaskTarget;
+  clear_glow_mask.clear = true;
+  clear_glow_mask.clear_color = engine::UIColor{0.0f, 0.0f, 0.0f, 0.0f};
+
+  engine::RenderPass clear_mushroom_mask{};
+  clear_mushroom_mask.name = "mushroom-mask-clear";
+  clear_mushroom_mask.target = panel_occlusion_fx::kMushroomMaskTarget;
+  clear_mushroom_mask.clear = true;
+  clear_mushroom_mask.clear_color = engine::UIColor{0.0f, 0.0f, 0.0f, 0.0f};
+
+  engine::RenderPass clear_panel_mask{};
+  clear_panel_mask.name = "panel-mask-clear";
+  clear_panel_mask.target = panel_occlusion_fx::kPanelMaskTarget;
+  clear_panel_mask.clear = true;
+  clear_panel_mask.clear_color = engine::UIColor{0.0f, 0.0f, 0.0f, 0.0f};
 
   engine::RenderPass clear_pass{};
   clear_pass.name = "scene-clear";
   clear_pass.target = kColorTarget;
   clear_pass.clear = true;
   clear_pass.clear_color = engine::shrooms::kScreenClearColor;
+  frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_panel_mask));
+  frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_mushroom_mask));
   frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_pass));
-  frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_mask));
+  frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_glow_mask));
 
   const engine::Vec2 texel{1.0f / static_cast<float>(width),
                            1.0f / static_cast<float>(height)};
@@ -230,16 +252,39 @@ inline void append_post_process(engine::Frame& frame) {
   frame.plan.passes.push_back(std::move(blur_y));
 
   engine::RenderPass composite{};
-  composite.name = "glow-divide";
-  composite.shader_id = glow_divide_shader_id();
+  composite.name = "shrooms-composite";
+  composite.shader_id = panel_occlusion_fx::composite_shader_id();
   composite.view = view;
   composite.proj = proj;
   composite.state.blend = false;
   composite.target = engine::kRenderTargetBackbuffer;
   composite.uniforms.push_back(engine::Uniform{"u_color_tex", engine::RenderTargetRef{kColorTarget}});
-  composite.uniforms.push_back(engine::Uniform{"u_mask_tex", engine::RenderTargetRef{kGlowMaskTarget}});
+  composite.uniforms.push_back(
+      engine::Uniform{"u_glow_mask_tex", engine::RenderTargetRef{kGlowMaskTarget}});
+  composite.uniforms.push_back(engine::Uniform{
+      "u_mushroom_mask_tex",
+      engine::RenderTargetRef{panel_occlusion_fx::kMushroomMaskTarget}});
+  composite.uniforms.push_back(engine::Uniform{
+      "u_panel_mask_tex", engine::RenderTargetRef{panel_occlusion_fx::kPanelMaskTarget}});
+  composite.uniforms.push_back(engine::Uniform{"u_texel", texel});
   composite.uniforms.push_back(engine::Uniform{"u_divide_strength", config.glow_divide_strength});
   composite.uniforms.push_back(engine::Uniform{"u_divide_epsilon", config.glow_divide_epsilon});
+  composite.uniforms.push_back(
+      engine::Uniform{"u_time", static_cast<float>(ecs::context().time_seconds)});
+  composite.uniforms.push_back(engine::Uniform{
+      "u_panel_edge_radius_px", panel_occlusion_fx::config.edge_radius_px});
+  composite.uniforms.push_back(engine::Uniform{
+      "u_panel_edge_strength", panel_occlusion_fx::config.edge_strength});
+  composite.uniforms.push_back(engine::Uniform{
+      "u_panel_pulse_speed", panel_occlusion_fx::config.pulse_speed});
+  composite.uniforms.push_back(
+      engine::Uniform{"u_panel_wave_scale", panel_occlusion_fx::config.wave_scale});
+  composite.uniforms.push_back(engine::Uniform{
+      "u_panel_edge_color",
+      engine::Vec4{panel_occlusion_fx::config.edge_color.x,
+                   panel_occlusion_fx::config.edge_color.y,
+                   panel_occlusion_fx::config.edge_color.z,
+                   panel_occlusion_fx::config.edge_color.w}});
   emit_post_quad(composite);
   frame.plan.passes.push_back(std::move(composite));
 }
