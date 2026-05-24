@@ -3,10 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <map>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "glm/glm/vec2.hpp"
 #include "glm/glm/vec4.hpp"
@@ -14,7 +12,6 @@
 #include "ecs/ecs.hpp"
 #include "ecs/context.hpp"
 #include "utils/arena.hpp"
-#include "systems/animation/sprite_animation.hpp"
 #include "systems/color/color_system.hpp"
 #include "systems/dynamic/dynamic_object.hpp"
 #include "systems/hidden/hidden_object.hpp"
@@ -133,7 +130,7 @@ inline glm::vec2 panel_center_norm() {
 
 inline glm::vec2 face_size_px() {
   const glm::vec2 ref_size =
-      resolve_reference_size(config.face_reference_size, "face_mini_1", 24.0f);
+      resolve_reference_size(config.face_reference_size, "bat_face", 44.0f);
   return shrooms::texture_sizing::from_reference_size(ref_size);
 }
 
@@ -359,13 +356,8 @@ inline void reset_hud() {
     face_transform->pos = shrooms::screen::center_to_top_left(face_center_px(), size);
     face_icon->add(face_transform);
     face_icon->add(arena::create<layers::ConstLayer>(config.layer));
-    const engine::TextureId frame_1 = engine::resources::register_texture("face_mini_1");
-    const engine::TextureId frame_2 = engine::resources::register_texture("face_mini_2");
-    face_icon->add(arena::create<render_system::SpriteRenderable>(frame_1, size));
-    std::map<std::string, std::vector<animation::SpriteFrame>> clips{};
-    clips["idle"] = {animation::SpriteFrame{frame_1, 0.25f},
-                     animation::SpriteFrame{frame_2, 0.25f}};
-    face_icon->add(arena::create<animation::SpriteAnimation>(std::move(clips), "idle"));
+    const engine::TextureId tex_id = engine::resources::register_texture("bat_face");
+    face_icon->add(arena::create<render_system::SpriteRenderable>(tex_id, size));
     face_icon->add(arena::create<scene::SceneObject>("main"));
   }
 
