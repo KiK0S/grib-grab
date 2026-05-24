@@ -292,8 +292,17 @@ inline void register_params() {
   reg.add(score_group, "row_spacing", scoreboard::config.row_spacing)
       .label("Row Spacing")
       .range(0.0f, 0.2f, 0.005f);
+  reg.add(score_group, "row_offset_x_px", scoreboard::config.row_offset_x_px)
+      .label("Row Offset X")
+      .range(-80.0f, 80.0f, 1.0f);
+  reg.add(score_group, "row_icon_gap_px", scoreboard::config.row_icon_gap_px)
+      .label("Row Icon Gap")
+      .range(0.0f, 40.0f, 1.0f);
   reg.add(score_group, "text_font_px", scoreboard::config.text_font_px)
       .label("Text Size")
+      .range(8.0f, 48.0f, 1.0f);
+  reg.add(score_group, "score_font_px", scoreboard::config.score_font_px)
+      .label("Score Text Size")
       .range(8.0f, 48.0f, 1.0f);
   reg.add(score_group, "layer", scoreboard::config.layer)
       .label("Layer")

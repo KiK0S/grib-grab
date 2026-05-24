@@ -25,6 +25,7 @@
 #include "systems/transformation/transform_object.hpp"
 #include "engine/geometry_builder.h"
 
+#include "scoreboard.hpp"
 #include "shrooms_screen.hpp"
 #include "shrooms_texture_sizing.hpp"
 
@@ -179,16 +180,7 @@ inline float heart_row_width_px(const glm::vec2& heart_size, float gap) {
 }
 
 inline glm::vec2 score_anchor_px() {
-  const std::string value = score_text ? score_text->text : std::to_string(current_score);
-  const glm::vec2 heart_size = heart_size_px();
-  const glm::vec2 bat_size = bat_size_px();
-  const float icon_gap = row_gap_px(heart_size);
-  const float score_gap = score_bat_gap_px(heart_size);
-  const glm::vec2 score_size = score_text_size_px(value);
-  const float total_width = score_size.x + score_gap + bat_row_width_px(bat_size, icon_gap);
-  return row_center_px(kTopRowCenterYFraction) -
-         glm::vec2{total_width * 0.5f - score_size.x * 0.5f, 0.0f} +
-         shrooms::screen::scale_to_pixels(config.score_offset);
+  return scoreboard::score_anchor_px();
 }
 
 inline glm::vec2 face_center_px() {
@@ -211,56 +203,15 @@ inline glm::vec2 heart_row_start_px(const glm::vec2& heart_size, float gap) {
 }
 
 inline glm::vec2 bat_row_start_px(const glm::vec2& bat_size, float icon_gap) {
-  const std::string value = score_text ? score_text->text : std::to_string(current_score);
-  const glm::vec2 heart_size = heart_size_px();
-  const glm::vec2 score_size = score_text_size_px(value);
-  const float score_gap = score_bat_gap_px(heart_size);
-  const float total_width = score_size.x + score_gap + bat_row_width_px(bat_size, icon_gap);
+  const float total_width = bat_row_width_px(bat_size, icon_gap);
   return row_center_px(kTopRowCenterYFraction) -
          glm::vec2{total_width * 0.5f, 0.0f} +
-         glm::vec2{score_size.x + score_gap, 0.0f} +
          shrooms::screen::scale_to_pixels(config.score_offset);
 }
 
-inline void update_score_layout() {
-  if (!score_text || !score_text_transform) return;
-  const std::string value = std::to_string(current_score);
-  score_text->text = value;
-  const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, config.score_font_px);
-  const glm::vec2 size{layout.width, layout.height};
-  score_text_transform->pos = score_anchor_px() - size * 0.5f;
-}
+inline void update_score_layout() {}
 
-inline void update_lives_layout() {
-  const glm::vec2 heart_size = heart_size_px();
-  const float gap = row_gap_px(heart_size);
-  const glm::vec2 row_start = heart_row_start_px(heart_size, gap);
-  const int visible_hearts =
-      std::clamp(current_lives, 0, static_cast<int>(kMaxLifeHearts));
-
-  for (size_t i = 0; i < kMaxLifeHearts; ++i) {
-    if (life_heart_transforms[i]) {
-      const glm::vec2 center =
-          row_start + glm::vec2{heart_size.x * 0.5f + static_cast<float>(i) * (heart_size.x + gap),
-                                0.0f};
-      life_heart_transforms[i]->pos = shrooms::screen::center_to_top_left(center, heart_size);
-    }
-    if (life_heart_sprites[i]) {
-      life_heart_sprites[i]->size = heart_size;
-      life_heart_sprites[i]->geometry = engine::geometry::make_quad(heart_size.x, heart_size.y);
-      life_heart_sprites[i]->uploaded = false;
-    }
-    if (life_heart_hidden[i]) {
-      life_heart_hidden[i]->set_visible(lives_visible);
-    }
-    if (life_heart_colors[i]) {
-      const bool filled = static_cast<int>(i) < visible_hearts;
-      life_heart_colors[i]->color =
-          filled ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
-                 : glm::vec4{0.34f, 0.34f, 0.38f, 0.82f};
-    }
-  }
-}
+inline void update_lives_layout() {}
 
 inline void update_bat_layout() {
   const glm::vec2 heart_size = heart_size_px();
@@ -310,20 +261,19 @@ inline void update_panel_layout() {
 
 inline void set_score(int score_value) {
   current_score = score_value;
-  update_score_layout();
-  update_bat_layout();
+  scoreboard::set_score(score_value);
 }
 
 inline int score() { return current_score; }
 
 inline void set_lives(int lives_value) {
   current_lives = lives_value;
-  update_lives_layout();
+  scoreboard::set_hearts(lives_value);
 }
 
 inline void set_lives_visible(bool visible) {
   lives_visible = visible;
-  update_lives_layout();
+  scoreboard::set_hearts_visible(visible);
 }
 
 inline void set_bat_availability(int ready_count) {
@@ -414,37 +364,21 @@ inline void reset_hud() {
   if (score_text_entity) {
     score_text_entity->mark_deleted();
   }
-  score_text_entity = arena::create<ecs::Entity>();
-  score_text_transform = arena::create<transform::NoRotationTransform>();
-  score_text_entity->add(score_text_transform);
-  score_text_entity->add(arena::create<layers::ConstLayer>(config.layer + 1));
-  score_text = arena::create<text::TextObject>("0", config.score_font_px);
-  score_text_entity->add(score_text);
-  score_text_color = arena::create<color::OneColor>(config.score_color);
-  score_text_entity->add(score_text_color);
-  score_text_entity->add(arena::create<scene::SceneObject>("main"));
-  update_score_layout();
+  score_text_entity = nullptr;
+  score_text_transform = nullptr;
+  score_text = nullptr;
+  score_text_color = nullptr;
 
   for (size_t i = 0; i < kMaxLifeHearts; ++i) {
     if (life_heart_entities[i]) {
       life_heart_entities[i]->mark_deleted();
     }
-    life_heart_entities[i] = arena::create<ecs::Entity>();
-    life_heart_transforms[i] = arena::create<transform::NoRotationTransform>();
-    life_heart_entities[i]->add(life_heart_transforms[i]);
-    life_heart_entities[i]->add(arena::create<layers::ConstLayer>(config.layer + 1));
-    const engine::TextureId tex_id = engine::resources::register_texture("heart");
-    const glm::vec2 size = shrooms::texture_sizing::from_width_px("heart", 18.0f);
-    life_heart_sprites[i] = arena::create<render_system::SpriteRenderable>(tex_id, size);
-    life_heart_entities[i]->add(life_heart_sprites[i]);
-    life_heart_colors[i] = arena::create<color::OneColor>(glm::vec4{1.0f});
-    life_heart_entities[i]->add(life_heart_colors[i]);
-    life_heart_hidden[i] = arena::create<hidden::HiddenObject>();
-    life_heart_entities[i]->add(life_heart_hidden[i]);
-    life_heart_entities[i]->add(arena::create<scene::SceneObject>("main"));
+    life_heart_entities[i] = nullptr;
+    life_heart_transforms[i] = nullptr;
+    life_heart_sprites[i] = nullptr;
+    life_heart_hidden[i] = nullptr;
+    life_heart_colors[i] = nullptr;
   }
-  update_lives_layout();
-  set_lives_visible(lives_visible);
 
   for (size_t i = 0; i < kMaxBatIcons; ++i) {
     if (bat_icon_entities[i]) {
@@ -470,6 +404,9 @@ inline void init() {
   current_lives = 0;
   current_ready_bats = static_cast<int>(kMaxBatIcons);
   lives_visible = false;
+  scoreboard::set_score(0);
+  scoreboard::set_hearts(0);
+  scoreboard::set_hearts_visible(false);
   hud_offset_px = glm::vec2{0.0f, 0.0f};
   hud_anim_active = false;
   reset_hud();

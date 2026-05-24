@@ -461,17 +461,18 @@ inline std::vector<std::pair<std::string, int>> tutorial_recipe() {
 }
 
 inline void hide_tutorial_lives() {
-  score_hud::set_lives_visible(false);
+  scoreboard::set_hearts_visible(false);
 }
 
 inline void show_tutorial_recipe_board() {
+  scoreboard::set_score(0);
   scoreboard::init_with_targets(tutorial_recipe(), "");
   scoreboard::update_score(good_mushroom_type, recipe_good_catches, kRecipeGoodTarget);
   scoreboard::update_score(bad_mushroom_type, 0, kRecipeBadTarget);
 }
 
 inline void hide_tutorial_recipe_board() {
-  scoreboard::init_with_targets({}, "");
+  scoreboard::hide();
 }
 
 inline void restart_stage(const std::string& reason, Stage restart_stage = Stage::None) {

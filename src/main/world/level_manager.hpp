@@ -953,7 +953,7 @@ inline int apply_score_delta(int delta, const glm::vec2& anchor, bool show_popup
   const int previous = current_run_score;
   current_run_score = std::max(0, current_run_score + delta);
   const int applied = current_run_score - previous;
-  score_hud::set_score(current_run_score);
+  scoreboard::set_score(current_run_score);
   if (show_popup && applied != 0) {
     vfx::spawn_score_delta(anchor, applied);
   }
@@ -979,20 +979,20 @@ inline bool uses_recipe_targets() {
 inline void reset_collector_lives_if_needed() {
   if (current_game_mode != GameMode::Collector || tutorial_mode) {
     collector_lives_remaining = 0;
-    score_hud::set_lives_visible(false);
+    scoreboard::set_hearts_visible(false);
     return;
   }
   if (!infinite_mode || infinite_round_index == 0) {
     collector_lives_remaining = kCollectorLivesPerRun;
   }
-  score_hud::set_lives_visible(true);
-  score_hud::set_lives(collector_lives_remaining);
+  scoreboard::set_hearts_visible(true);
+  scoreboard::set_hearts(collector_lives_remaining);
 }
 
 inline void decrement_collector_life() {
   if (current_game_mode != GameMode::Collector || tutorial_mode) return;
   collector_lives_remaining = std::max(0, collector_lives_remaining - 1);
-  score_hud::set_lives(collector_lives_remaining);
+  scoreboard::set_hearts(collector_lives_remaining);
 }
 
 inline void finalize_success_after_transition() {
@@ -1185,9 +1185,9 @@ inline void start_level_with_definition(const LevelDefinition& level, size_t dis
   if (reset_run_score) {
     current_run_score = 0;
     milestone_bonus_awarded.clear();
-    score_hud::set_score(0);
+    scoreboard::set_score(0);
   } else {
-    score_hud::set_score(current_run_score);
+    scoreboard::set_score(current_run_score);
   }
   collected_counts.clear();
   sorted_counts.clear();
@@ -1240,7 +1240,7 @@ inline void start_infinite_mode() {
 
 inline void advance_infinite_round() {
   if (current_game_mode == GameMode::Collector) return;
-  apply_score_delta(kScoreRoundAdvance, score_hud::score_anchor_px(), true);
+  apply_score_delta(kScoreRoundAdvance, scoreboard::score_anchor_px(), true);
   infinite_rounds_won += 1;
   infinite_round_index += 1;
   build_infinite_level(infinite_round_index);
