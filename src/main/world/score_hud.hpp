@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <map>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "glm/glm/vec2.hpp"
 #include "glm/glm/vec4.hpp"
@@ -12,6 +14,7 @@
 #include "ecs/ecs.hpp"
 #include "ecs/context.hpp"
 #include "utils/arena.hpp"
+#include "systems/animation/sprite_animation.hpp"
 #include "systems/color/color_system.hpp"
 #include "systems/dynamic/dynamic_object.hpp"
 #include "systems/hidden/hidden_object.hpp"
@@ -130,7 +133,7 @@ inline glm::vec2 panel_center_norm() {
 
 inline glm::vec2 face_size_px() {
   const glm::vec2 ref_size =
-      resolve_reference_size(config.face_reference_size, "bat_face", 44.0f);
+      resolve_reference_size(config.face_reference_size, "face_mini_1", 24.0f);
   return shrooms::texture_sizing::from_reference_size(ref_size);
 }
 
@@ -142,11 +145,11 @@ inline glm::vec2 heart_size_px() {
 
 inline glm::vec2 bat_size_px() {
   const glm::vec2 heart_size = heart_size_px();
-  const float aspect = std::max(0.1f, shrooms::texture_sizing::aspect_ratio("famiriar"));
+  const float aspect = std::max(0.1f, shrooms::texture_sizing::aspect_ratio("bat_face"));
   const float target_width = heart_size.y * kBatHeightToHeartHeight * aspect;
   const float max_width = panel_size_px().x * kBatRowMaxWidthFraction;
   const float bat_width = std::max(11.0f, std::min(max_width, target_width));
-  return shrooms::texture_sizing::from_width_px("famiriar", bat_width);
+  return shrooms::texture_sizing::from_width_px("bat_face", bat_width);
 }
 
 inline float row_gap_px(const glm::vec2& heart_size) {
@@ -356,8 +359,13 @@ inline void reset_hud() {
     face_transform->pos = shrooms::screen::center_to_top_left(face_center_px(), size);
     face_icon->add(face_transform);
     face_icon->add(arena::create<layers::ConstLayer>(config.layer));
-    const engine::TextureId tex_id = engine::resources::register_texture("bat_face");
-    face_icon->add(arena::create<render_system::SpriteRenderable>(tex_id, size));
+    const engine::TextureId frame_1 = engine::resources::register_texture("face_mini_1");
+    const engine::TextureId frame_2 = engine::resources::register_texture("face_mini_2");
+    face_icon->add(arena::create<render_system::SpriteRenderable>(frame_1, size));
+    std::map<std::string, std::vector<animation::SpriteFrame>> clips{};
+    clips["idle"] = {animation::SpriteFrame{frame_1, 0.25f},
+                     animation::SpriteFrame{frame_2, 0.25f}};
+    face_icon->add(arena::create<animation::SpriteAnimation>(std::move(clips), "idle"));
     face_icon->add(arena::create<scene::SceneObject>("main"));
   }
 
@@ -388,8 +396,8 @@ inline void reset_hud() {
     bat_icon_transforms[i] = arena::create<transform::NoRotationTransform>();
     bat_icon_entities[i]->add(bat_icon_transforms[i]);
     bat_icon_entities[i]->add(arena::create<layers::ConstLayer>(config.layer + 1));
-    const engine::TextureId tex_id = engine::resources::register_texture("famiriar");
-    const glm::vec2 size = shrooms::texture_sizing::from_width_px("famiriar", 14.0f);
+    const engine::TextureId tex_id = engine::resources::register_texture("bat_face");
+    const glm::vec2 size = shrooms::texture_sizing::from_width_px("bat_face", 14.0f);
     bat_icon_sprites[i] = arena::create<render_system::SpriteRenderable>(tex_id, size);
     bat_icon_entities[i]->add(bat_icon_sprites[i]);
     bat_icon_colors[i] = arena::create<color::OneColor>(glm::vec4{1.0f});
