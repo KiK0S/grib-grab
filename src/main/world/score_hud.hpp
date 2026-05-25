@@ -54,8 +54,8 @@ inline constexpr float kFaceCenterXFraction = 0.50f;
 inline constexpr float kFaceCenterYFraction = 0.70f;
 inline constexpr float kHeartWidthFraction = 0.024f;
 inline constexpr float kRowGapToHeartWidth = 0.18f;
-inline constexpr float kBatRowWidthFraction = 0.8f;
-inline constexpr float kBatRowGapFraction = 0.075f;
+inline constexpr float kBatRowWidthFraction = 0.7f;
+inline constexpr float kBatRowGapFraction = 0.05f;
 inline const glm::vec4 kBatReloadMaskColor{0.42f, 0.42f, 0.42f, 0.58f};
 
 enum class BatHudSlotState {
