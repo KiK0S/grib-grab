@@ -20,6 +20,7 @@ namespace panel_occlusion_fx {
 
 inline constexpr engine::RenderTargetId kMushroomMaskTarget = 3;
 inline constexpr engine::RenderTargetId kPanelMaskTarget = 4;
+inline constexpr engine::RenderTargetId kFamiliarPanelMaskTarget = 5;
 
 struct Config {
   float edge_radius_px = 3.0f;

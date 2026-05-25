@@ -243,7 +243,7 @@ struct FamiliarMaskRenderable : public render_system::Renderable {
   }
 
   engine::RenderTargetId render_target() const override {
-    return panel_occlusion_fx::kMushroomMaskTarget;
+    return panel_occlusion_fx::kFamiliarPanelMaskTarget;
   }
 
   void emit(engine::RenderPass& pass) override {

@@ -167,7 +167,7 @@ inline void append_post_process(engine::Frame& frame) {
   const int height = shrooms::screen::view_height;
   if (width <= 0 || height <= 0) return;
 
-  frame.plan.targets.reserve(frame.plan.targets.size() + 5);
+  frame.plan.targets.reserve(frame.plan.targets.size() + 6);
   frame.plan.targets.push_back(engine::RenderTargetDesc{
       "shrooms_color", width, height, engine::RenderTargetFormat::RGBA8,
       engine::RenderTargetFilter::Linear});
@@ -182,6 +182,9 @@ inline void append_post_process(engine::Frame& frame) {
       engine::RenderTargetFilter::Linear});
   frame.plan.targets.push_back(engine::RenderTargetDesc{
       "shrooms_panel_mask", width, height, engine::RenderTargetFormat::R8,
+      engine::RenderTargetFilter::Linear});
+  frame.plan.targets.push_back(engine::RenderTargetDesc{
+      "shrooms_familiar_panel_mask", width, height, engine::RenderTargetFormat::R8,
       engine::RenderTargetFilter::Linear});
 
   ensure_post_quad(width, height);
@@ -208,12 +211,19 @@ inline void append_post_process(engine::Frame& frame) {
   clear_panel_mask.clear = true;
   clear_panel_mask.clear_color = engine::UIColor{0.0f, 0.0f, 0.0f, 0.0f};
 
+  engine::RenderPass clear_familiar_panel_mask{};
+  clear_familiar_panel_mask.name = "familiar-panel-mask-clear";
+  clear_familiar_panel_mask.target = panel_occlusion_fx::kFamiliarPanelMaskTarget;
+  clear_familiar_panel_mask.clear = true;
+  clear_familiar_panel_mask.clear_color = engine::UIColor{0.0f, 0.0f, 0.0f, 0.0f};
+
   engine::RenderPass clear_pass{};
   clear_pass.name = "scene-clear";
   clear_pass.target = kColorTarget;
   clear_pass.clear = true;
   clear_pass.clear_color = engine::shrooms::kScreenClearColor;
   frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_panel_mask));
+  frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_familiar_panel_mask));
   frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_mushroom_mask));
   frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_pass));
   frame.plan.passes.insert(frame.plan.passes.begin(), std::move(clear_glow_mask));
@@ -266,6 +276,9 @@ inline void append_post_process(engine::Frame& frame) {
       engine::RenderTargetRef{panel_occlusion_fx::kMushroomMaskTarget}});
   composite.uniforms.push_back(engine::Uniform{
       "u_panel_mask_tex", engine::RenderTargetRef{panel_occlusion_fx::kPanelMaskTarget}});
+  composite.uniforms.push_back(engine::Uniform{
+      "u_familiar_panel_mask_tex",
+      engine::RenderTargetRef{panel_occlusion_fx::kFamiliarPanelMaskTarget}});
   composite.uniforms.push_back(engine::Uniform{"u_texel", texel});
   composite.uniforms.push_back(engine::Uniform{"u_divide_strength", config.glow_divide_strength});
   composite.uniforms.push_back(engine::Uniform{"u_divide_epsilon", config.glow_divide_epsilon});
