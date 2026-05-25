@@ -49,5 +49,5 @@ void main() {
 
   float mask = texture(u_tex, clamp(warped_uv, vec2(0.0), vec2(1.0))).a *
                v_color.a * u_color.a;
-  o_color = vec4(mask, mask, mask, mask);
+  o_color = vec4(1.0, 1.0, 1.0, mask);
 }

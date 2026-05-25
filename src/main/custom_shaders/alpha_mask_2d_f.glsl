@@ -10,5 +10,5 @@ uniform vec4 u_color;
 
 void main() {
   float mask = texture(u_tex, v_uv).a * u_color.a;
-  o_color = vec4(mask, mask, mask, mask);
+  o_color = vec4(1.0, 1.0, 1.0, mask);
 }
