@@ -65,9 +65,11 @@ void main() {
   vec3 rgb = clamp(base.rgb / denom, 0.0, 1.0);
 
   float panel_mask = texture(u_panel_mask_tex, v_uv).r;
-  float edge = mushroom_edge(v_uv) * smoothstep(0.08, 0.42, panel_mask);
+  float panel_coverage = smoothstep(0.08, 0.42, panel_mask);
+  float mushroom_panel_mask = sample_mushroom(v_uv) * panel_coverage;
+  float edge = mushroom_edge(v_uv) * panel_coverage;
   float familiar_panel_mask = texture(u_familiar_panel_mask_tex, v_uv).r *
-                              smoothstep(0.08, 0.42, panel_mask);
+                              panel_coverage;
   float wave = sin(u_time * u_panel_pulse_speed +
                    (v_uv.x * 0.73 + v_uv.y * 1.17) * u_panel_wave_scale);
   float pulse = 0.68 + 0.32 * wave;
@@ -76,6 +78,9 @@ void main() {
 
   rgb = clamp(rgb + edge_color * shimmer * 0.45, 0.0, 1.0);
   rgb = mix(rgb, max(rgb, edge_color), shimmer * 0.35);
+  float mushroom_visibility =
+      mushroom_panel_mask * clamp(u_panel_edge_strength * 0.32, 0.0, 0.42);
+  rgb = mix(rgb, max(rgb, edge_color), mushroom_visibility);
   float familiar_visibility =
       familiar_panel_mask * clamp(u_panel_edge_strength * 0.32, 0.0, 0.42);
   rgb = mix(rgb, max(rgb, edge_color), familiar_visibility);
