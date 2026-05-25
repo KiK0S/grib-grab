@@ -58,6 +58,17 @@ inline constexpr float kBatRowWidthFraction = 0.8f;
 inline constexpr float kBatRowGapFraction = 0.075f;
 inline const glm::vec4 kBatReloadMaskColor{0.42f, 0.42f, 0.42f, 0.58f};
 
+enum class BatHudSlotState {
+  Active,
+  Recovering,
+  Unavailable,
+};
+
+struct BatHudSlot {
+  BatHudSlotState state = BatHudSlotState::Active;
+  float recovery_progress = 1.0f;
+};
+
 inline engine::ShaderId bat_reload_mask_shader_id() {
   static const engine::ShaderId id =
       engine::resources::register_shader("texture_alpha_tint_2d");
@@ -140,8 +151,7 @@ inline std::array<color::OneColor*, kMaxBatIcons> bat_reload_mask_colors{};
 inline std::array<hidden::HiddenObject*, kMaxBatIcons> bat_reload_mask_hidden{};
 inline int current_score = 0;
 inline int current_lives = 0;
-inline int current_ready_bats = static_cast<int>(kMaxBatIcons);
-inline float current_bat_reload_progress = 0.0f;
+inline std::array<BatHudSlot, kMaxBatIcons> current_bat_slots{};
 inline bool lives_visible = false;
 inline glm::vec2 hud_offset_px{0.0f, 0.0f};
 inline glm::vec2 hud_anim_start_px{0.0f, 0.0f};
@@ -284,13 +294,13 @@ inline void update_bat_layout() {
   const glm::vec2 bat_size = bat_size_px();
   const float gap = bat_row_gap_px();
   const glm::vec2 row_start = bat_row_start_px(bat_size, gap);
-  const int ready_bats = std::clamp(current_ready_bats, 0, static_cast<int>(kMaxBatIcons));
-  const float reload_progress = clamp01(current_bat_reload_progress);
-  const int reloading_bat_index =
-      ready_bats < static_cast<int>(kMaxBatIcons) ? ready_bats : -1;
-  const float reload_mask_fraction = 1.0f - reload_progress;
 
   for (size_t i = 0; i < kMaxBatIcons; ++i) {
+    const BatHudSlot slot = current_bat_slots[i];
+    const bool active = slot.state == BatHudSlotState::Active;
+    const bool recovering = slot.state == BatHudSlotState::Recovering;
+    const float recovery_progress = clamp01(slot.recovery_progress);
+    const float reload_mask_fraction = recovering ? 1.0f - recovery_progress : 0.0f;
     const glm::vec2 center =
         row_start + glm::vec2{bat_size.x * 0.5f +
                                   static_cast<float>(i) * (bat_size.x + gap),
@@ -306,15 +316,12 @@ inline void update_bat_layout() {
       bat_icon_sprites[i]->uploaded = false;
     }
     if (bat_icon_colors[i]) {
-      const bool ready = static_cast<int>(i) < ready_bats;
-      const bool reloading = static_cast<int>(i) == reloading_bat_index;
       bat_icon_colors[i]->color =
-          (ready || reloading) ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
-                               : glm::vec4{0.32f, 0.32f, 0.36f, 0.72f};
+          (active || recovering) ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
+                                  : glm::vec4{0.32f, 0.32f, 0.36f, 0.72f};
     }
 
-    const bool showing_reload_mask =
-        static_cast<int>(i) == reloading_bat_index && reload_mask_fraction > 0.001f;
+    const bool showing_reload_mask = recovering && reload_mask_fraction > 0.001f;
     if (bat_reload_mask_hidden[i]) {
       bat_reload_mask_hidden[i]->set_visible(showing_reload_mask);
     }
@@ -371,16 +378,41 @@ inline void set_lives_visible(bool visible) {
   scoreboard::set_hearts_visible(visible);
 }
 
-inline void set_bat_availability(int ready_count) {
-  current_ready_bats = std::clamp(ready_count, 0, static_cast<int>(kMaxBatIcons));
-  current_bat_reload_progress = 0.0f;
+inline void set_bat_slots(const std::array<BatHudSlot, kMaxBatIcons>& slots) {
+  current_bat_slots = slots;
+  for (auto& slot : current_bat_slots) {
+    slot.recovery_progress = clamp01(slot.recovery_progress);
+  }
   update_bat_layout();
 }
 
+inline void set_bat_availability(int ready_count) {
+  std::array<BatHudSlot, kMaxBatIcons> slots{};
+  const int clamped_ready = std::clamp(ready_count, 0, static_cast<int>(kMaxBatIcons));
+  for (size_t i = 0; i < kMaxBatIcons; ++i) {
+    slots[i].state =
+        static_cast<int>(i) < clamped_ready ? BatHudSlotState::Active
+                                           : BatHudSlotState::Unavailable;
+    slots[i].recovery_progress = slots[i].state == BatHudSlotState::Active ? 1.0f : 0.0f;
+  }
+  set_bat_slots(slots);
+}
+
 inline void set_bat_availability(int ready_count, float reload_progress) {
-  current_ready_bats = std::clamp(ready_count, 0, static_cast<int>(kMaxBatIcons));
-  current_bat_reload_progress = clamp01(reload_progress);
-  update_bat_layout();
+  std::array<BatHudSlot, kMaxBatIcons> slots{};
+  const int clamped_ready = std::clamp(ready_count, 0, static_cast<int>(kMaxBatIcons));
+  const int recovering_index =
+      clamped_ready < static_cast<int>(kMaxBatIcons) ? clamped_ready : -1;
+  for (size_t i = 0; i < kMaxBatIcons; ++i) {
+    if (static_cast<int>(i) < clamped_ready) {
+      slots[i] = BatHudSlot{BatHudSlotState::Active, 1.0f};
+    } else if (static_cast<int>(i) == recovering_index) {
+      slots[i] = BatHudSlot{BatHudSlotState::Recovering, reload_progress};
+    } else {
+      slots[i] = BatHudSlot{BatHudSlotState::Unavailable, 0.0f};
+    }
+  }
+  set_bat_slots(slots);
 }
 
 inline void animate_offset_to(const glm::vec2& target, float duration) {
@@ -525,8 +557,7 @@ inline void reset_hud() {
 inline void init() {
   current_score = 0;
   current_lives = 0;
-  current_ready_bats = static_cast<int>(kMaxBatIcons);
-  current_bat_reload_progress = 0.0f;
+  current_bat_slots = {};
   lives_visible = false;
   scoreboard::set_score(0);
   scoreboard::set_hearts(0);

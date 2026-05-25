@@ -754,26 +754,66 @@ inline std::array<ecs::Entity*, kFamiliarCount> familiar_entities{};
 inline std::array<FamiliarLogic*, kFamiliarCount> familiar_logic{};
 inline glm::vec2 familiar_size{0.0f, 0.0f};
 
-inline int ready_familiar_count() {
-  int count = 0;
-  for (auto* logic : familiar_logic) {
-    if (!logic) continue;
-    if (logic->is_idle()) ++count;
-  }
-  return count;
-}
-
-inline float next_familiar_reload_progress() {
+struct FamiliarRecoveryHudEntry {
+  float time_left = 0.0f;
   float progress = 0.0f;
-  for (auto* logic : familiar_logic) {
-    if (!logic) continue;
-    progress = std::max(progress, logic->reload_progress());
-  }
-  return progress;
-}
+  int familiar_index = 0;
+};
 
 inline void update_bat_hud() {
-  score_hud::set_bat_availability(ready_familiar_count(), next_familiar_reload_progress());
+  std::array<score_hud::BatHudSlot, score_hud::kMaxBatIcons> slots{};
+  std::vector<FamiliarRecoveryHudEntry> recovering{};
+  size_t slot_index = 0;
+  int unavailable_count = 0;
+
+  for (int i = 0; i < kFamiliarCount; ++i) {
+    FamiliarLogic* logic = familiar_logic[i];
+    if (!logic) {
+      ++unavailable_count;
+      continue;
+    }
+
+    if (logic->is_idle()) {
+      if (slot_index < slots.size()) {
+        slots[slot_index++] = score_hud::BatHudSlot{score_hud::BatHudSlotState::Active, 1.0f};
+      }
+      continue;
+    }
+
+    if (logic->state == FamiliarState::Cooldown) {
+      recovering.push_back(FamiliarRecoveryHudEntry{
+          std::max(0.0f, logic->cooldown_timer),
+          logic->reload_progress(),
+          i,
+      });
+      continue;
+    }
+
+    ++unavailable_count;
+  }
+
+  std::sort(recovering.begin(), recovering.end(),
+            [](const FamiliarRecoveryHudEntry& lhs, const FamiliarRecoveryHudEntry& rhs) {
+              if (lhs.time_left != rhs.time_left) return lhs.time_left < rhs.time_left;
+              return lhs.familiar_index < rhs.familiar_index;
+            });
+
+  for (const FamiliarRecoveryHudEntry& entry : recovering) {
+    if (slot_index >= slots.size()) break;
+    slots[slot_index++] =
+        score_hud::BatHudSlot{score_hud::BatHudSlotState::Recovering, entry.progress};
+  }
+
+  for (int i = 0; i < unavailable_count && slot_index < slots.size(); ++i) {
+    slots[slot_index++] =
+        score_hud::BatHudSlot{score_hud::BatHudSlotState::Unavailable, 0.0f};
+  }
+  while (slot_index < slots.size()) {
+    slots[slot_index++] =
+        score_hud::BatHudSlot{score_hud::BatHudSlotState::Unavailable, 0.0f};
+  }
+
+  score_hud::set_bat_slots(slots);
 }
 
 inline FamiliarLogic* find_idle_familiar() {
