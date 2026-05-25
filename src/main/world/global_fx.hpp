@@ -20,6 +20,7 @@
 #include "systems/transformation/transform_object.hpp"
 
 #include "camera_shake.hpp"
+#include "game_over_sequence.hpp"
 #include "panel_occlusion_fx.hpp"
 #include "shrooms_screen.hpp"
 #include "player.hpp"
@@ -280,18 +281,14 @@ inline void append_post_process(engine::Frame& frame) {
       "u_familiar_panel_mask_tex",
       engine::RenderTargetRef{panel_occlusion_fx::kFamiliarPanelMaskTarget}});
   composite.uniforms.push_back(engine::Uniform{"u_texel", texel});
+  const glm::vec2 screen_shake_offset = game_over_sequence::current_shake_offset();
+  composite.uniforms.push_back(engine::Uniform{
+      "u_screen_shake_offset",
+      engine::Vec2{screen_shake_offset.x, screen_shake_offset.y}});
   composite.uniforms.push_back(engine::Uniform{"u_divide_strength", config.glow_divide_strength});
   composite.uniforms.push_back(engine::Uniform{"u_divide_epsilon", config.glow_divide_epsilon});
-  composite.uniforms.push_back(
-      engine::Uniform{"u_time", static_cast<float>(ecs::context().time_seconds)});
-  composite.uniforms.push_back(engine::Uniform{
-      "u_panel_edge_radius_px", panel_occlusion_fx::config.edge_radius_px});
   composite.uniforms.push_back(engine::Uniform{
       "u_panel_edge_strength", panel_occlusion_fx::config.edge_strength});
-  composite.uniforms.push_back(engine::Uniform{
-      "u_panel_pulse_speed", panel_occlusion_fx::config.pulse_speed});
-  composite.uniforms.push_back(
-      engine::Uniform{"u_panel_wave_scale", panel_occlusion_fx::config.wave_scale});
   composite.uniforms.push_back(engine::Uniform{
       "u_panel_edge_color",
       engine::Vec4{panel_occlusion_fx::config.edge_color.x,

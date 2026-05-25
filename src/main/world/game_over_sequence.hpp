@@ -154,6 +154,10 @@ inline void finish_sequence() {
 
 inline bool is_active() { return active; }
 
+inline glm::vec2 current_shake_offset() {
+  return active ? last_offset : glm::vec2{0.0f, 0.0f};
+}
+
 struct GameOverSequenceController : public dynamic::DynamicObject {
   GameOverSequenceController() : dynamic::DynamicObject() {}
   ~GameOverSequenceController() override { Component::component_count--; }
