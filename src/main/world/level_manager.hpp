@@ -147,6 +147,8 @@ inline std::vector<InfiniteCollectorTicket> infinite_collector_queue{};
 inline uint32_t infinite_collector_ticket_index = 0;
 inline constexpr size_t kInfiniteCollectorMinQueue = 3;
 inline constexpr size_t kInfiniteCollectorMaxQueue = 5;
+inline constexpr int kInfiniteCollectorScorePerLevel = 150;
+inline constexpr int kInfiniteRecipeScorePerLevel = 450;
 
 using TutorialSpawnHook = std::function<void(const std::string&, ecs::Entity*)>;
 using TutorialCatchHook =
@@ -234,6 +236,14 @@ inline bool is_infinite_collector_run() {
 inline int collector_lives() { return collector_lives_remaining; }
 
 inline int score() { return current_run_score; }
+
+inline int infinite_collector_level_for_score(int score_value) {
+  return std::max(0, score_value) / kInfiniteCollectorScorePerLevel;
+}
+
+inline int infinite_collector_level_index() {
+  return infinite_collector_level_for_score(current_run_score);
+}
 
 inline size_t tutorial_menu_index() {
   return parsed_levels.size() + kTutorialLevelIndexOffset;
@@ -360,7 +370,9 @@ inline void apply_infinite_background_for_round(int round_index) {
 
 inline void apply_level_background(const LevelDefinition& level) {
   if (infinite_mode) {
-    apply_infinite_background_for_round(infinite_round_index);
+    const int background_index =
+        is_infinite_collector_run() ? infinite_collector_level_index() : infinite_round_index;
+    apply_infinite_background_for_round(background_index);
     return;
   }
   if (tutorial_mode) {
@@ -644,6 +656,9 @@ inline uint32_t seed_for_level(const LevelDefinition& level, size_t seed_index,
 }
 
 inline void seed_spawners_for_level(const LevelDefinition& level, size_t seed_index) {
+  if (is_infinite_collector_run()) {
+    return;
+  }
   for (const auto& plan : level.spawners) {
     auto it = spawners_by_type.find(plan.type);
     if (it == spawners_by_type.end()) continue;
@@ -710,13 +725,28 @@ inline void cycle_game_mode() {
                                                          : GameMode::Collector);
 }
 
+inline int infinite_recipe_score_level() {
+  return std::max(0, current_run_score) / kInfiniteRecipeScorePerLevel;
+}
+
 inline int infinite_target_for_round_type(int round_index, const std::string& type) {
-  const int round_boost = std::min(3, round_index / 3);
-  const int base = 2 + round_boost;
+  const int score_boost = infinite_recipe_score_level();
+  const int base = 2 + score_boost;
   uint32_t hash = hash_daily_round(0x41a13u, round_index);
   hash = fnv1a_append(hash, type);
   const int jitter = static_cast<int>(hash % 5u) - 1;
-  return std::clamp(base + jitter, 1, 7);
+  return std::max(1, base + jitter);
+}
+
+inline SpawnerPlan scale_infinite_recipe_spawner(SpawnerPlan plan, int target) {
+  const int score_level = infinite_recipe_score_level();
+  const double density_multiplier = 1.0 + static_cast<double>(score_level) * 0.1;
+  const float period_divisor = 1.0f + static_cast<float>(score_level) * 0.04f;
+  plan.density = std::max(0.1, plan.density * density_multiplier);
+  plan.period = std::max(0.7f, plan.period / period_divisor);
+  const int spare = std::max(2 + score_level / 2, target / 2);
+  plan.total_to_spawn = std::max(1, target + spare);
+  return plan;
 }
 
 inline void build_infinite_level(int round_index) {
@@ -756,8 +786,7 @@ inline void build_infinite_level(int round_index) {
     if (current_game_mode == GameMode::Collector) {
       plan.total_to_spawn = -1;
     } else {
-      const int spare = std::max(2, target / 2);
-      plan.total_to_spawn = std::max(1, target + spare);
+      plan = scale_infinite_recipe_spawner(plan, target);
     }
     infinite_level.spawners.push_back(plan);
   }
@@ -816,6 +845,14 @@ inline SpawnerPlan infinite_collector_plan_for_type(const std::string& type) {
   return plan;
 }
 
+inline SpawnerPlan scale_infinite_collector_spawner(SpawnerPlan plan) {
+  const int collector_level = infinite_collector_level_index();
+  const double density_multiplier = 1.0 + static_cast<double>(collector_level) * 0.25;
+  plan.density = std::max(0.1, plan.density * density_multiplier);
+  plan.total_to_spawn = std::max(1, 1 + collector_level / 3);
+  return plan;
+}
+
 inline void disable_all_spawners() {
   for (auto& [_, spawner] : spawners_by_type) {
     if (spawner) {
@@ -837,33 +874,49 @@ inline void activate_infinite_collector_front_spawner() {
       continue;
     }
 
-    const SpawnerPlan plan = infinite_collector_plan_for_type(ticket.type);
+    const SpawnerPlan plan =
+        scale_infinite_collector_spawner(infinite_collector_plan_for_type(ticket.type));
     auto* spawner = spawner_it->second;
-    spawner->configure(plan.period, plan.density, 1);
+    spawner->configure(plan.period, plan.density, plan.total_to_spawn);
     spawner->reseed(infinite_collector_seed_for_ticket(ticket));
     spawner->enabled = true;
     return;
   }
 }
 
-inline void on_infinite_collector_ticket_spawned(const std::string& type) {
+inline void advance_infinite_collector_ticket_if_depleted(const std::string& type) {
   if (!is_infinite_collector_run()) return;
-  if (!infinite_collector_queue.empty() && infinite_collector_queue.front().type == type) {
-    infinite_collector_queue.erase(infinite_collector_queue.begin());
-  } else {
-    auto it = std::find_if(infinite_collector_queue.begin(), infinite_collector_queue.end(),
-                           [&](const InfiniteCollectorTicket& ticket) {
-                             return ticket.type == type;
-                           });
-    if (it != infinite_collector_queue.end()) {
-      infinite_collector_queue.erase(it);
-    }
+  if (infinite_collector_queue.empty() || infinite_collector_queue.front().type != type) {
+    return;
   }
+  auto spawner_it = spawners_by_type.find(type);
+  if (spawner_it == spawners_by_type.end() || !spawner_it->second ||
+      !spawner_it->second->is_depleted()) {
+    return;
+  }
+
+  infinite_collector_queue.erase(infinite_collector_queue.begin());
   refill_infinite_collector_queue();
   if (infinite_collector_queue.size() < kInfiniteCollectorMinQueue) {
     refill_infinite_collector_queue();
   }
-  deferred::fire_deferred([]() { activate_infinite_collector_front_spawner(); }, 0);
+  activate_infinite_collector_front_spawner();
+}
+
+inline void on_infinite_collector_ticket_spawned(const std::string& type) {
+  if (!is_infinite_collector_run()) return;
+  deferred::fire_deferred(
+      [type]() { advance_infinite_collector_ticket_if_depleted(type); }, 0);
+}
+
+inline void refresh_infinite_collector_progression_for_score(int previous_score,
+                                                             int next_score) {
+  if (!is_infinite_collector_run()) return;
+  const int previous_level = infinite_collector_level_for_score(previous_score);
+  const int next_level = infinite_collector_level_for_score(next_score);
+  if (previous_level == next_level) return;
+  apply_infinite_background_for_round(next_level);
+  activate_infinite_collector_front_spawner();
 }
 
 inline void prepare_infinite_preview() {
@@ -955,6 +1008,7 @@ inline int apply_score_delta(int delta, const glm::vec2& anchor, bool show_popup
   current_run_score = std::max(0, current_run_score + delta);
   const int applied = current_run_score - previous;
   scoreboard::set_score(current_run_score);
+  refresh_infinite_collector_progression_for_score(previous, current_run_score);
   if (show_popup && applied != 0) {
     vfx::spawn_score_delta(anchor, applied);
   }
