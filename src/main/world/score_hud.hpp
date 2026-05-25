@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cmath>
 #include <map>
 #include <string>
@@ -55,6 +56,63 @@ inline constexpr float kHeartWidthFraction = 0.024f;
 inline constexpr float kRowGapToHeartWidth = 0.18f;
 inline constexpr float kBatRowWidthFraction = 0.8f;
 inline constexpr float kBatRowGapFraction = 0.075f;
+inline const glm::vec4 kBatReloadMaskColor{0.42f, 0.42f, 0.42f, 0.58f};
+
+inline engine::ShaderId bat_reload_mask_shader_id() {
+  static const engine::ShaderId id =
+      engine::resources::register_shader("texture_alpha_tint_2d");
+  return id;
+}
+
+struct BatReloadMaskRenderable : public render_system::Renderable {
+  BatReloadMaskRenderable(engine::TextureId texture_id, glm::vec2 size)
+      : texture_id(texture_id), size(size) {
+    geometry_id = engine::resources::register_geometry(
+        "bat_reload_mask_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
+    geometry = engine::geometry::make_quad(size.x, size.y);
+  }
+  ~BatReloadMaskRenderable() override { Component::component_count--; }
+
+  engine::ShaderId shader_id() const override { return bat_reload_mask_shader_id(); }
+
+  void set_region(const glm::vec2& next_size, const std::array<float, 8>& uvs) {
+    size = next_size;
+    geometry = engine::geometry::make_quad(size.x, size.y, uvs);
+    uploaded = false;
+  }
+
+  void emit(engine::RenderPass& pass) override {
+    if (!entity || entity->is_pending_deletion()) return;
+    auto* transform = entity->get<transform::TransformObject>();
+    if (!transform) return;
+
+    engine::UIColor color{kBatReloadMaskColor.x, kBatReloadMaskColor.y,
+                          kBatReloadMaskColor.z, kBatReloadMaskColor.w};
+    if (auto* colored = entity->get<color::ColoredObject>()) {
+      const auto c = colored->get_color();
+      color = engine::UIColor{c.x, c.y, c.z, c.w};
+    }
+
+    const glm::vec2 pos = transform->get_pos();
+    engine::DrawItem item{};
+    if (!uploaded) {
+      pass.uploads.push_back(engine::GeometryUpload{geometry_id, geometry});
+      uploaded = true;
+    }
+    item.geometry_id = geometry_id;
+    item.model = engine::mat4_translate(pos.x + render_system::view_offset_x,
+                                        pos.y + render_system::view_offset_y, 0.0f);
+    item.color = color;
+    item.texture_id = texture_id;
+    pass.draw_items.push_back(item);
+  }
+
+  engine::TextureId texture_id = engine::kInvalidTextureId;
+  glm::vec2 size{0.0f, 0.0f};
+  engine::GeometryId geometry_id = engine::kInvalidGeometryId;
+  engine::GeometryData geometry{};
+  bool uploaded = false;
+};
 
 inline ecs::Entity* face_icon = nullptr;
 inline ecs::Entity* panel = nullptr;
@@ -75,11 +133,11 @@ inline std::array<ecs::Entity*, kMaxBatIcons> bat_icon_entities{};
 inline std::array<transform::NoRotationTransform*, kMaxBatIcons> bat_icon_transforms{};
 inline std::array<render_system::SpriteRenderable*, kMaxBatIcons> bat_icon_sprites{};
 inline std::array<color::OneColor*, kMaxBatIcons> bat_icon_colors{};
-inline std::array<ecs::Entity*, kMaxBatIcons> bat_reload_fill_entities{};
-inline std::array<transform::NoRotationTransform*, kMaxBatIcons> bat_reload_fill_transforms{};
-inline std::array<render_system::SpriteRenderable*, kMaxBatIcons> bat_reload_fill_sprites{};
-inline std::array<color::OneColor*, kMaxBatIcons> bat_reload_fill_colors{};
-inline std::array<hidden::HiddenObject*, kMaxBatIcons> bat_reload_fill_hidden{};
+inline std::array<ecs::Entity*, kMaxBatIcons> bat_reload_mask_entities{};
+inline std::array<transform::NoRotationTransform*, kMaxBatIcons> bat_reload_mask_transforms{};
+inline std::array<BatReloadMaskRenderable*, kMaxBatIcons> bat_reload_mask_renderables{};
+inline std::array<color::OneColor*, kMaxBatIcons> bat_reload_mask_colors{};
+inline std::array<hidden::HiddenObject*, kMaxBatIcons> bat_reload_mask_hidden{};
 inline int current_score = 0;
 inline int current_lives = 0;
 inline int current_ready_bats = static_cast<int>(kMaxBatIcons);
@@ -229,7 +287,8 @@ inline void update_bat_layout() {
   const int ready_bats = std::clamp(current_ready_bats, 0, static_cast<int>(kMaxBatIcons));
   const float reload_progress = clamp01(current_bat_reload_progress);
   const int reloading_bat_index =
-      ready_bats < static_cast<int>(kMaxBatIcons) && reload_progress > 0.0f ? ready_bats : -1;
+      ready_bats < static_cast<int>(kMaxBatIcons) ? ready_bats : -1;
+  const float reload_mask_fraction = 1.0f - reload_progress;
 
   for (size_t i = 0; i < kMaxBatIcons; ++i) {
     const glm::vec2 center =
@@ -248,33 +307,32 @@ inline void update_bat_layout() {
     }
     if (bat_icon_colors[i]) {
       const bool ready = static_cast<int>(i) < ready_bats;
+      const bool reloading = static_cast<int>(i) == reloading_bat_index;
       bat_icon_colors[i]->color =
-          ready ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
-                : glm::vec4{0.32f, 0.32f, 0.36f, 0.72f};
+          (ready || reloading) ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
+                               : glm::vec4{0.32f, 0.32f, 0.36f, 0.72f};
     }
 
-    const bool showing_reload = static_cast<int>(i) == reloading_bat_index;
-    if (bat_reload_fill_hidden[i]) {
-      bat_reload_fill_hidden[i]->set_visible(showing_reload);
+    const bool showing_reload_mask =
+        static_cast<int>(i) == reloading_bat_index && reload_mask_fraction > 0.001f;
+    if (bat_reload_mask_hidden[i]) {
+      bat_reload_mask_hidden[i]->set_visible(showing_reload_mask);
     }
-    if (!showing_reload) continue;
+    if (!showing_reload_mask) continue;
 
-    const float fill_height = std::max(1.0f, bat_size.y * reload_progress);
-    const float fill_top_v = 1.0f - (fill_height / bat_size.y);
-    if (bat_reload_fill_transforms[i]) {
-      bat_reload_fill_transforms[i]->pos =
-          top_left + glm::vec2{0.0f, bat_size.y - fill_height};
+    const float mask_height = std::max(1.0f, bat_size.y * reload_mask_fraction);
+    const float mask_bottom_v = std::min(1.0f, mask_height / bat_size.y);
+    if (bat_reload_mask_transforms[i]) {
+      bat_reload_mask_transforms[i]->pos = top_left;
     }
-    if (bat_reload_fill_sprites[i]) {
-      const std::array<float, 8> fill_uvs{0.0f, fill_top_v, 1.0f, fill_top_v,
-                                          0.0f, 1.0f,        1.0f, 1.0f};
-      bat_reload_fill_sprites[i]->size = glm::vec2{bat_size.x, fill_height};
-      bat_reload_fill_sprites[i]->geometry =
-          engine::geometry::make_quad(bat_size.x, fill_height, fill_uvs);
-      bat_reload_fill_sprites[i]->uploaded = false;
+    if (bat_reload_mask_renderables[i]) {
+      const std::array<float, 8> mask_uvs{0.0f, 0.0f,          1.0f, 0.0f,
+                                          0.0f, mask_bottom_v, 1.0f, mask_bottom_v};
+      bat_reload_mask_renderables[i]->set_region(glm::vec2{bat_size.x, mask_height},
+                                                 mask_uvs);
     }
-    if (bat_reload_fill_colors[i]) {
-      bat_reload_fill_colors[i]->color = glm::vec4{0.68f, 0.35f, 1.0f, 0.82f};
+    if (bat_reload_mask_colors[i]) {
+      bat_reload_mask_colors[i]->color = kBatReloadMaskColor;
     }
   }
 }
@@ -433,8 +491,8 @@ inline void reset_hud() {
     if (bat_icon_entities[i]) {
       bat_icon_entities[i]->mark_deleted();
     }
-    if (bat_reload_fill_entities[i]) {
-      bat_reload_fill_entities[i]->mark_deleted();
+    if (bat_reload_mask_entities[i]) {
+      bat_reload_mask_entities[i]->mark_deleted();
     }
     bat_icon_entities[i] = arena::create<ecs::Entity>();
     bat_icon_transforms[i] = arena::create<transform::NoRotationTransform>();
@@ -448,19 +506,18 @@ inline void reset_hud() {
     bat_icon_entities[i]->add(bat_icon_colors[i]);
     bat_icon_entities[i]->add(arena::create<scene::SceneObject>("main"));
 
-    bat_reload_fill_entities[i] = arena::create<ecs::Entity>();
-    bat_reload_fill_transforms[i] = arena::create<transform::NoRotationTransform>();
-    bat_reload_fill_entities[i]->add(bat_reload_fill_transforms[i]);
-    bat_reload_fill_entities[i]->add(arena::create<layers::ConstLayer>(config.layer + 2));
-    bat_reload_fill_sprites[i] = arena::create<render_system::SpriteRenderable>(tex_id, size);
-    bat_reload_fill_entities[i]->add(bat_reload_fill_sprites[i]);
-    bat_reload_fill_colors[i] =
-        arena::create<color::OneColor>(glm::vec4{0.68f, 0.35f, 1.0f, 0.0f});
-    bat_reload_fill_entities[i]->add(bat_reload_fill_colors[i]);
-    bat_reload_fill_hidden[i] = arena::create<hidden::HiddenObject>();
-    bat_reload_fill_hidden[i]->hide();
-    bat_reload_fill_entities[i]->add(bat_reload_fill_hidden[i]);
-    bat_reload_fill_entities[i]->add(arena::create<scene::SceneObject>("main"));
+    bat_reload_mask_entities[i] = arena::create<ecs::Entity>();
+    bat_reload_mask_transforms[i] = arena::create<transform::NoRotationTransform>();
+    bat_reload_mask_entities[i]->add(bat_reload_mask_transforms[i]);
+    bat_reload_mask_entities[i]->add(arena::create<layers::ConstLayer>(config.layer + 2));
+    bat_reload_mask_renderables[i] = arena::create<BatReloadMaskRenderable>(tex_id, size);
+    bat_reload_mask_entities[i]->add(bat_reload_mask_renderables[i]);
+    bat_reload_mask_colors[i] = arena::create<color::OneColor>(kBatReloadMaskColor);
+    bat_reload_mask_entities[i]->add(bat_reload_mask_colors[i]);
+    bat_reload_mask_hidden[i] = arena::create<hidden::HiddenObject>();
+    bat_reload_mask_hidden[i]->hide();
+    bat_reload_mask_entities[i]->add(bat_reload_mask_hidden[i]);
+    bat_reload_mask_entities[i]->add(arena::create<scene::SceneObject>("main"));
   }
   update_bat_layout();
 }
