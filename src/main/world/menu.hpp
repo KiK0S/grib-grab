@@ -167,6 +167,7 @@ inline TextLine gameover_title{};
 inline TextLine gameover_level{};
 inline TextLine gameover_collected{};
 inline TextLine gameover_sorted{};
+inline TextLine gameover_score{};
 inline TextLine gameover_hint{};
 inline TextLine gameover_name_prompt{};
 inline TextLine gameover_name_value{};
@@ -955,6 +956,10 @@ inline void refresh_gameover_lines() {
   update_text(gameover_level, "");
   update_text(gameover_collected, "");
   update_text(gameover_sorted, "");
+  update_text(gameover_score,
+              result.infinite_mode
+                  ? "Your score: " + std::to_string(std::max(0, result.global_score))
+                  : "");
   update_text(gameover_hint, "");
   update_text(gameover_restart, "Restart");
   update_text(gameover_main_menu, "Main Menu");
@@ -1000,6 +1005,9 @@ inline void set_menu_mode(MenuMode mode) {
   set_line_visibility(gameover_level, false, false);
   set_line_visibility(gameover_collected, false, false);
   set_line_visibility(gameover_sorted, false, false);
+  set_line_visibility(gameover_score, show_game_over && levels::last_result_valid &&
+                                          levels::last_result.infinite_mode,
+                      false);
   const bool show_restart = show_game_over && !awaiting_name_entry;
   const bool show_share = show_restart && levels::last_result_valid && levels::last_result.infinite_mode;
   const bool show_hint =
@@ -2219,6 +2227,7 @@ inline void init() {
   gameover_level = make_text_line(glm::vec2{kMenuTextX, 0.44f}, 20.0f, 6);
   gameover_collected = make_text_line(glm::vec2{kMenuTextX, 0.28f}, 20.0f, 6);
   gameover_sorted = make_text_line(glm::vec2{kMenuTextX, 0.14f}, 20.0f, 6);
+  gameover_score = make_text_line(glm::vec2{kMenuTextX, 0.78f}, 22.0f, 6);
   gameover_name_prompt = make_text_line(glm::vec2{kMenuTextX, -0.42f}, 18.0f, 6);
   gameover_name_value = make_text_line(glm::vec2{kMenuTextX, -0.58f}, 20.0f, 6);
   gameover_restart = make_text_line(glm::vec2{kMenuTextX, -0.42f}, 20.0f, 6);
