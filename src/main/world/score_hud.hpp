@@ -75,9 +75,15 @@ inline std::array<ecs::Entity*, kMaxBatIcons> bat_icon_entities{};
 inline std::array<transform::NoRotationTransform*, kMaxBatIcons> bat_icon_transforms{};
 inline std::array<render_system::SpriteRenderable*, kMaxBatIcons> bat_icon_sprites{};
 inline std::array<color::OneColor*, kMaxBatIcons> bat_icon_colors{};
+inline std::array<ecs::Entity*, kMaxBatIcons> bat_reload_fill_entities{};
+inline std::array<transform::NoRotationTransform*, kMaxBatIcons> bat_reload_fill_transforms{};
+inline std::array<render_system::SpriteRenderable*, kMaxBatIcons> bat_reload_fill_sprites{};
+inline std::array<color::OneColor*, kMaxBatIcons> bat_reload_fill_colors{};
+inline std::array<hidden::HiddenObject*, kMaxBatIcons> bat_reload_fill_hidden{};
 inline int current_score = 0;
 inline int current_lives = 0;
 inline int current_ready_bats = static_cast<int>(kMaxBatIcons);
+inline float current_bat_reload_progress = 0.0f;
 inline bool lives_visible = false;
 inline glm::vec2 hud_offset_px{0.0f, 0.0f};
 inline glm::vec2 hud_anim_start_px{0.0f, 0.0f};
@@ -221,14 +227,19 @@ inline void update_bat_layout() {
   const float gap = bat_row_gap_px();
   const glm::vec2 row_start = bat_row_start_px(bat_size, gap);
   const int ready_bats = std::clamp(current_ready_bats, 0, static_cast<int>(kMaxBatIcons));
+  const float reload_progress = clamp01(current_bat_reload_progress);
+  const int reloading_bat_index =
+      ready_bats < static_cast<int>(kMaxBatIcons) && reload_progress > 0.0f ? ready_bats : -1;
 
   for (size_t i = 0; i < kMaxBatIcons; ++i) {
+    const glm::vec2 center =
+        row_start + glm::vec2{bat_size.x * 0.5f +
+                                  static_cast<float>(i) * (bat_size.x + gap),
+                              0.0f};
+    const glm::vec2 top_left = shrooms::screen::center_to_top_left(center, bat_size);
+
     if (bat_icon_transforms[i]) {
-      const glm::vec2 center =
-          row_start + glm::vec2{bat_size.x * 0.5f +
-                                    static_cast<float>(i) * (bat_size.x + gap),
-                                0.0f};
-      bat_icon_transforms[i]->pos = shrooms::screen::center_to_top_left(center, bat_size);
+      bat_icon_transforms[i]->pos = top_left;
     }
     if (bat_icon_sprites[i]) {
       bat_icon_sprites[i]->size = bat_size;
@@ -240,6 +251,30 @@ inline void update_bat_layout() {
       bat_icon_colors[i]->color =
           ready ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
                 : glm::vec4{0.32f, 0.32f, 0.36f, 0.72f};
+    }
+
+    const bool showing_reload = static_cast<int>(i) == reloading_bat_index;
+    if (bat_reload_fill_hidden[i]) {
+      bat_reload_fill_hidden[i]->set_visible(showing_reload);
+    }
+    if (!showing_reload) continue;
+
+    const float fill_height = std::max(1.0f, bat_size.y * reload_progress);
+    const float fill_top_v = 1.0f - (fill_height / bat_size.y);
+    if (bat_reload_fill_transforms[i]) {
+      bat_reload_fill_transforms[i]->pos =
+          top_left + glm::vec2{0.0f, bat_size.y - fill_height};
+    }
+    if (bat_reload_fill_sprites[i]) {
+      const std::array<float, 8> fill_uvs{0.0f, fill_top_v, 1.0f, fill_top_v,
+                                          0.0f, 1.0f,        1.0f, 1.0f};
+      bat_reload_fill_sprites[i]->size = glm::vec2{bat_size.x, fill_height};
+      bat_reload_fill_sprites[i]->geometry =
+          engine::geometry::make_quad(bat_size.x, fill_height, fill_uvs);
+      bat_reload_fill_sprites[i]->uploaded = false;
+    }
+    if (bat_reload_fill_colors[i]) {
+      bat_reload_fill_colors[i]->color = glm::vec4{0.68f, 0.35f, 1.0f, 0.82f};
     }
   }
 }
@@ -280,6 +315,13 @@ inline void set_lives_visible(bool visible) {
 
 inline void set_bat_availability(int ready_count) {
   current_ready_bats = std::clamp(ready_count, 0, static_cast<int>(kMaxBatIcons));
+  current_bat_reload_progress = 0.0f;
+  update_bat_layout();
+}
+
+inline void set_bat_availability(int ready_count, float reload_progress) {
+  current_ready_bats = std::clamp(ready_count, 0, static_cast<int>(kMaxBatIcons));
+  current_bat_reload_progress = clamp01(reload_progress);
   update_bat_layout();
 }
 
@@ -391,6 +433,9 @@ inline void reset_hud() {
     if (bat_icon_entities[i]) {
       bat_icon_entities[i]->mark_deleted();
     }
+    if (bat_reload_fill_entities[i]) {
+      bat_reload_fill_entities[i]->mark_deleted();
+    }
     bat_icon_entities[i] = arena::create<ecs::Entity>();
     bat_icon_transforms[i] = arena::create<transform::NoRotationTransform>();
     bat_icon_entities[i]->add(bat_icon_transforms[i]);
@@ -402,6 +447,20 @@ inline void reset_hud() {
     bat_icon_colors[i] = arena::create<color::OneColor>(glm::vec4{1.0f});
     bat_icon_entities[i]->add(bat_icon_colors[i]);
     bat_icon_entities[i]->add(arena::create<scene::SceneObject>("main"));
+
+    bat_reload_fill_entities[i] = arena::create<ecs::Entity>();
+    bat_reload_fill_transforms[i] = arena::create<transform::NoRotationTransform>();
+    bat_reload_fill_entities[i]->add(bat_reload_fill_transforms[i]);
+    bat_reload_fill_entities[i]->add(arena::create<layers::ConstLayer>(config.layer + 2));
+    bat_reload_fill_sprites[i] = arena::create<render_system::SpriteRenderable>(tex_id, size);
+    bat_reload_fill_entities[i]->add(bat_reload_fill_sprites[i]);
+    bat_reload_fill_colors[i] =
+        arena::create<color::OneColor>(glm::vec4{0.68f, 0.35f, 1.0f, 0.0f});
+    bat_reload_fill_entities[i]->add(bat_reload_fill_colors[i]);
+    bat_reload_fill_hidden[i] = arena::create<hidden::HiddenObject>();
+    bat_reload_fill_hidden[i]->hide();
+    bat_reload_fill_entities[i]->add(bat_reload_fill_hidden[i]);
+    bat_reload_fill_entities[i]->add(arena::create<scene::SceneObject>("main"));
   }
   update_bat_layout();
 }
@@ -410,6 +469,7 @@ inline void init() {
   current_score = 0;
   current_lives = 0;
   current_ready_bats = static_cast<int>(kMaxBatIcons);
+  current_bat_reload_progress = 0.0f;
   lives_visible = false;
   scoreboard::set_score(0);
   scoreboard::set_hearts(0);

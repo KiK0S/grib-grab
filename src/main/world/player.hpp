@@ -285,6 +285,8 @@ struct FamiliarLogic : public dynamic::DynamicObject {
         cooldown_timer = std::max(0.0f, cooldown_timer - dt);
         if (cooldown_timer <= 0.0f) {
           begin_ready();
+        } else {
+          update_bat_hud();
         }
         break;
       }
@@ -304,6 +306,12 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   }
 
   bool is_idle() const { return state == FamiliarState::Ready; }
+
+  float reload_progress() const {
+    if (state != FamiliarState::Cooldown) return 0.0f;
+    if (return_delay <= 0.0f) return 1.0f;
+    return std::clamp(1.0f - (cooldown_timer / return_delay), 0.0f, 1.0f);
+  }
 
   bool can_capture() const { return state == FamiliarState::Planted && !carried; }
 
@@ -558,6 +566,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     if (hidden) hidden->hide();
     cooldown_timer = return_delay;
     state = FamiliarState::Cooldown;
+    update_bat_hud();
   }
 
   void begin_strike_dash() {
@@ -666,8 +675,17 @@ inline int ready_familiar_count() {
   return count;
 }
 
+inline float next_familiar_reload_progress() {
+  float progress = 0.0f;
+  for (auto* logic : familiar_logic) {
+    if (!logic) continue;
+    progress = std::max(progress, logic->reload_progress());
+  }
+  return progress;
+}
+
 inline void update_bat_hud() {
-  score_hud::set_bat_availability(ready_familiar_count());
+  score_hud::set_bat_availability(ready_familiar_count(), next_familiar_reload_progress());
 }
 
 inline FamiliarLogic* find_idle_familiar() {
