@@ -48,6 +48,8 @@ constexpr size_t kMaxLevelLines = 10;
 constexpr float kMenuTextX = -0.8f;
 constexpr float kLeaderboardTextX = kMenuTextX;
 constexpr float kMenuTextYOffsetNorm = 0.1f;
+constexpr float kModeSwitchCenterX = 0.44f;
+constexpr float kModeSwitchCenterY = 0.56f;
 constexpr size_t kLeaderboardLines = static_cast<size_t>(leaderboard::kMaxEntries);
 constexpr size_t kNameMaxLength = 12;
 constexpr const char* kDefaultMenuBackgroundTexture = "background";
@@ -129,6 +131,7 @@ struct TextLine {
 inline TextLine status_line{};
 inline TextLine instruction_line{};
 inline TextLine mode_line{};
+inline TextLine mode_recipe_line{};
 inline TextLine settings_line{};
 inline TextLine audio_line{};
 inline TextLine tutorial_line{};
@@ -724,8 +727,102 @@ inline void refresh_instruction_line() {
   update_text(instruction_line, "");
 }
 
+inline glm::vec2 mode_switch_segment_size() {
+  const float width =
+      std::clamp(static_cast<float>(shrooms::screen::view_width) * 0.15f, 112.0f, 146.0f);
+  const float height =
+      std::clamp(static_cast<float>(shrooms::screen::view_height) * 0.052f, 44.0f, 54.0f);
+  return glm::vec2{width, height};
+}
+
+inline void set_line_fixed_button(TextLine& line,
+                                  const glm::vec2& top_left,
+                                  const glm::vec2& size) {
+  line.anchor_pos = top_left;
+  line.size = size;
+  line.button_size = size;
+  line.button_base_pos = top_left;
+  line.button_base_size = size;
+  if (line.button_transform) {
+    line.button_transform->pos = top_left;
+  }
+  if (line.button_quad) {
+    set_quad_size(line.button_quad, size.x, size.y);
+  }
+  if (line.transform && line.text_object) {
+    const auto layout =
+        engine::text::layout_text(line.text_object->text, 0.0f, 0.0f, line.font_px);
+    line.transform->pos = top_left + glm::vec2{
+                                          (size.x - layout.width) * 0.5f,
+                                          (size.y - layout.height) * 0.5f,
+                                      };
+  }
+}
+
+inline void layout_mode_switch() {
+  const glm::vec2 segment_size = mode_switch_segment_size();
+  const float gap_px = std::clamp(segment_size.x * 0.035f, 4.0f, 6.0f);
+  const float total_width = segment_size.x * 2.0f + gap_px;
+  const glm::vec2 center = shrooms::screen::norm_to_pixels(
+      glm::vec2{kModeSwitchCenterX, kModeSwitchCenterY + kMenuTextYOffsetNorm});
+  const glm::vec2 top_left = center - glm::vec2{total_width, segment_size.y} * 0.5f;
+  set_line_fixed_button(mode_line, top_left, segment_size);
+  set_line_fixed_button(mode_recipe_line,
+                        top_left + glm::vec2{segment_size.x + gap_px, 0.0f},
+                        segment_size);
+}
+
+inline engine::UIColor mode_switch_active_color(levels::GameMode mode) {
+  switch (mode) {
+    case levels::GameMode::Collector:
+      return engine::UIColor{0.08f, 0.48f, 0.30f, 0.96f};
+    case levels::GameMode::Recipe:
+    default:
+      return engine::UIColor{0.72f, 0.34f, 0.14f, 0.96f};
+  }
+}
+
+inline void style_mode_switch_segment(TextLine& line,
+                                      levels::GameMode segment_mode,
+                                      bool active) {
+  const engine::UIColor active_color = mode_switch_active_color(segment_mode);
+  const engine::UIColor inactive_color{0.08f, 0.09f, 0.10f, 0.88f};
+  const engine::UIColor inactive_hover{0.18f, 0.20f, 0.23f, 0.96f};
+
+  line.base_button_color = active ? active_color : inactive_color;
+  line.hover_button_color = active ? active_color : inactive_hover;
+  line.selected_button_color = active ? active_color : inactive_hover;
+  line.dimmed_button_color =
+      active ? engine::UIColor{active_color.r, active_color.g, active_color.b, 0.74f}
+             : engine::UIColor{0.06f, 0.06f, 0.07f, 0.58f};
+  line.base_text_color = active ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
+                                : glm::vec4{0.76f, 0.78f, 0.80f, 0.95f};
+  line.selected_text_color = active ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
+                                    : glm::vec4{0.84f, 0.86f, 0.88f, 1.0f};
+  line.dimmed_text_color = active ? glm::vec4{0.92f, 0.94f, 0.94f, 0.82f}
+                                  : glm::vec4{0.50f, 0.52f, 0.54f, 0.78f};
+  line.hover_scale = 1.02f;
+  line.selected_scale = 1.0f;
+}
+
+inline void set_mode_switch_visual_state(bool switch_selected,
+                                         bool collector_hovered,
+                                         bool recipe_hovered,
+                                         bool dimmed) {
+  const bool collector_active = levels::game_mode() == levels::GameMode::Collector;
+  style_mode_switch_segment(mode_line, levels::GameMode::Collector, collector_active);
+  style_mode_switch_segment(mode_recipe_line, levels::GameMode::Recipe, !collector_active);
+  set_line_visual_state(mode_line, switch_selected && collector_active,
+                        collector_hovered && !collector_active, dimmed);
+  set_line_visual_state(mode_recipe_line, switch_selected && !collector_active,
+                        recipe_hovered && collector_active, dimmed);
+}
+
 inline void refresh_mode_line() {
-  update_text(mode_line, "Mode: " + levels::mode_label());
+  update_text(mode_line, "Collector");
+  update_text(mode_recipe_line, "Recipe");
+  layout_mode_switch();
+  set_mode_switch_visual_state(false, false, false, false);
 }
 
 inline void refresh_settings_line() {
@@ -779,9 +876,8 @@ inline void refresh_level_lines() {
 
 inline void relayout_main_rows_for_variable_heights() {
   constexpr float gap_px = 12.0f;
-  std::array<TextLine*, kMaxLevelLines + 3> ordered{};
+  std::array<TextLine*, kMaxLevelLines + 2> ordered{};
   size_t count = 0;
-  ordered[count++] = &mode_line;
   ordered[count++] = &settings_line;
   ordered[count++] = &tutorial_line;
   for (size_t i = 0; i < active_level_lines && i < kMaxLevelLines; ++i) {
@@ -978,6 +1074,7 @@ inline void set_menu_mode(MenuMode mode) {
   set_line_visibility(status_line, false, false);
   set_line_visibility(instruction_line, false, false);
   set_line_visibility(mode_line, show_main, show_main);
+  set_line_visibility(mode_recipe_line, show_main, show_main);
   set_line_visibility(settings_line, show_main, show_main);
   set_line_visibility(audio_line, show_settings, show_settings);
   set_line_visibility(tutorial_line, show_main, show_main);
@@ -1292,7 +1389,7 @@ struct MenuController : public dynamic::DynamicObject {
   }
 
   std::optional<size_t> main_slot_at_point(const glm::vec2& point, size_t current_levels) const {
-    if (point_hits_line(mode_line, point)) {
+    if (point_hits_line(mode_line, point) || point_hits_line(mode_recipe_line, point)) {
       return kModeMainSlot;
     }
     if (point_hits_line(settings_line, point)) {
@@ -1390,7 +1487,7 @@ struct MenuController : public dynamic::DynamicObject {
       set_line_visual_state(level_lines[i], false, false, false);
     }
     set_line_visual_state(tutorial_line, false, false, false);
-    set_line_visual_state(mode_line, false, false, false);
+    set_mode_switch_visual_state(false, false, false, false);
     set_line_visual_state(settings_line, false, false, false);
   }
 
@@ -1439,6 +1536,22 @@ struct MenuController : public dynamic::DynamicObject {
     set_settings_hint("Remap cancelled");
   }
 
+  std::optional<levels::GameMode> mode_switch_mode_at_point(const glm::vec2& point) const {
+    if (point_hits_line(mode_line, point)) return levels::GameMode::Collector;
+    if (point_hits_line(mode_recipe_line, point)) return levels::GameMode::Recipe;
+    return std::nullopt;
+  }
+
+  void choose_mode(levels::GameMode new_mode) {
+    levels::set_game_mode(new_mode);
+    refresh_level_lines();
+    refresh_instruction_line();
+    refresh_mode_line();
+    const size_t refreshed_levels = available_levels();
+    ensure_main_selection(refreshed_levels);
+    update_hover_state(refreshed_levels);
+  }
+
   void handle_selected_settings_action(size_t current_levels) {
     ensure_settings_selection();
     if (selected_settings_slot == kSettingsVolumeSlot) {
@@ -1478,13 +1591,8 @@ struct MenuController : public dynamic::DynamicObject {
   }
 
   void toggle_mode() {
-    levels::cycle_game_mode();
-    refresh_level_lines();
-    refresh_instruction_line();
-    refresh_mode_line();
-    const size_t refreshed_levels = available_levels();
-    ensure_main_selection(refreshed_levels);
-    update_hover_state(refreshed_levels);
+    choose_mode(levels::game_mode() == levels::GameMode::Collector ? levels::GameMode::Recipe
+                                                                    : levels::GameMode::Collector);
   }
 
   void toggle_mute(size_t current_levels) {
@@ -1552,8 +1660,12 @@ struct MenuController : public dynamic::DynamicObject {
                           !tutorial_selected && has_selection);
     const bool mode_selected = selected_main_slot && *selected_main_slot == kModeMainSlot;
     const bool mode_hovered = hovered_slot && *hovered_slot == kModeMainSlot;
-    set_line_visual_state(mode_line, mode_selected, mode_hovered,
-                          !mode_selected && has_selection);
+    const bool collector_hovered =
+        mode_hovered && last_pointer && point_hits_line(mode_line, *last_pointer);
+    const bool recipe_hovered =
+        mode_hovered && last_pointer && point_hits_line(mode_recipe_line, *last_pointer);
+    set_mode_switch_visual_state(mode_selected, collector_hovered, recipe_hovered,
+                                 !mode_selected && has_selection);
     const bool settings_selected =
         selected_main_slot && *selected_main_slot == kSettingsMainSlot;
     const bool settings_hovered = hovered_slot && *hovered_slot == kSettingsMainSlot;
@@ -1598,7 +1710,7 @@ struct MenuController : public dynamic::DynamicObject {
       set_line_visual_state(level_lines[i], false, false, false);
     }
     set_line_visual_state(tutorial_line, false, false, false);
-    set_line_visual_state(mode_line, false, false, false);
+    set_mode_switch_visual_state(false, false, false, false);
     set_line_visual_state(settings_line, false, false, false);
     set_line_visual_state(audio_line, false, false, false);
     for (auto& line : settings_control_lines) {
@@ -1621,7 +1733,7 @@ struct MenuController : public dynamic::DynamicObject {
         set_line_visual_state(level_lines[i], false, false, false);
       }
       set_line_visual_state(tutorial_line, false, false, false);
-      set_line_visual_state(mode_line, false, false, false);
+      set_mode_switch_visual_state(false, false, false, false);
       set_line_visual_state(settings_line, false, false, false);
       set_line_visual_state(audio_line, false, false, false);
       for (auto& line : settings_control_lines) {
@@ -1869,6 +1981,16 @@ struct MenuController : public dynamic::DynamicObject {
           update_hover_state(current_levels);
           continue;
         }
+        if (selected_main_slot && *selected_main_slot == kModeMainSlot &&
+            is_arrow_left_key(key)) {
+          choose_mode(levels::GameMode::Collector);
+          continue;
+        }
+        if (selected_main_slot && *selected_main_slot == kModeMainSlot &&
+            is_arrow_right_key(key)) {
+          choose_mode(levels::GameMode::Recipe);
+          continue;
+        }
         if (is_confirm_key(key) && selected_main_slot) {
           handle_selected_main_action(*selected_main_slot, current_levels);
           return;
@@ -1881,6 +2003,12 @@ struct MenuController : public dynamic::DynamicObject {
         auto slot = main_slot_at_point(point, current_levels);
         if (slot && is_main_slot_selectable(*slot, current_levels)) {
           selected_main_slot = *slot;
+          if (*slot == kModeMainSlot) {
+            if (auto mode = mode_switch_mode_at_point(point)) {
+              choose_mode(*mode);
+              return;
+            }
+          }
           handle_selected_main_action(*slot, current_levels);
           return;
         }
@@ -2164,7 +2292,8 @@ inline void init() {
 
   status_line = make_text_line(glm::vec2{kMenuTextX, 0.85f}, 22.0f, 6);
   instruction_line = make_text_line(glm::vec2{kMenuTextX, 0.71f}, 20.0f, 6);
-  mode_line = make_text_line(glm::vec2{kMenuTextX, 0.56f}, 19.0f, 6);
+  mode_line = make_text_line(glm::vec2{kModeSwitchCenterX, kModeSwitchCenterY}, 18.0f, 6);
+  mode_recipe_line = make_text_line(glm::vec2{kModeSwitchCenterX, kModeSwitchCenterY}, 18.0f, 6);
   settings_line = make_text_line(glm::vec2{kMenuTextX, 0.48f}, 19.0f, 6);
   audio_line = make_text_line(glm::vec2{kMenuTextX, 0.42f}, 19.0f, 6);
   tutorial_line = make_text_line(glm::vec2{kMenuTextX, 0.28f}, 20.0f, 6);
@@ -2185,6 +2314,7 @@ inline void init() {
     line.selected_scale = 1.0f;
   };
   style_menu_action(mode_line);
+  style_menu_action(mode_recipe_line);
   style_menu_action(settings_line);
   style_menu_action(audio_line);
   style_menu_action(tutorial_line);
