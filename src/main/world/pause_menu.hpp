@@ -44,6 +44,7 @@ constexpr int kKeyArrowUpSdl = 1073741906;
 constexpr int kKeyArrowDownSdl = 1073741905;
 constexpr int kKeyArrowLeftSdl = 1073741904;
 constexpr int kKeyArrowRightSdl = 1073741903;
+constexpr const char* kPauseToggleIconTexture = "in_game_pause";
 constexpr float kVolumeAdjustStep = 0.05f;
 
 struct ActionTextColor : public color::ColoredObject {
@@ -942,7 +943,8 @@ inline void init() {
       shrooms::screen::center_to_top_left(pause_button_center, pause_icon_size);
   pause_toggle_icon->add(pause_toggle_icon_transform);
   pause_toggle_icon->add(arena::create<layers::ConstLayer>(config.pause_button_layer + 1));
-  const engine::TextureId pause_toggle_icon_tex = engine::resources::register_texture("menu_pause");
+  const engine::TextureId pause_toggle_icon_tex =
+      engine::resources::register_texture(kPauseToggleIconTexture);
   pause_toggle_icon_sprite = arena::create<render_system::SpriteRenderable>(
       pause_toggle_icon_tex, pause_icon_size, engine::UIColor{1.0f, 1.0f, 1.0f, 1.0f});
   pause_toggle_icon->add(pause_toggle_icon_sprite);

@@ -62,6 +62,7 @@ inline void register_shrooms_svg_assets() {
   register_svg("digits_2");
   register_svg("digits_3");
   register_svg("menu_pause");
+  register_svg("in_game_pause");
   register_svg("menu_face");
   register_svg("menu_scoreboard");
   register_svg("heart");
