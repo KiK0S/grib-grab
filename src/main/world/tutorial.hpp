@@ -121,16 +121,16 @@ inline constexpr int kRecipeGoodTarget = 2;
 inline constexpr int kRecipeBadTarget = 0;
 inline constexpr float kRecipePreviewSeconds = 2.0f;
 
-inline constexpr glm::vec2 kTitleCenterNorm = glm::vec2{0.0f, 0.16f};
+inline constexpr glm::vec2 kTitleCenterNorm = glm::vec2{0.0f, 0.22f};
 inline constexpr glm::vec2 kHintCenterNorm = glm::vec2{0.0f, -0.02f};
 inline constexpr float kMaxTextWidthRatio = 0.86f;
 
 inline float view_width() { return static_cast<float>(shrooms::screen::view_width); }
 inline float view_height() { return static_cast<float>(shrooms::screen::view_height); }
 
-inline float title_font_px() { return controls::is_mobile_layout() ? 30.0f : 26.0f; }
+inline float title_font_px() { return controls::is_mobile_layout() ? 38.0f : 34.0f; }
 
-inline float hint_font_px() { return controls::is_mobile_layout() ? 23.0f : 20.0f; }
+inline float hint_font_px() { return controls::is_mobile_layout() ? 33.0f : 29.0f; }
 
 inline float player_center_x() {
   if (!player::player_transform) return view_width() * 0.5f;
@@ -277,6 +277,7 @@ inline void update_line(text::TextObject* text_obj, transform::NoRotationTransfo
   const std::string wrapped =
       wrap_text_for_view(value, font_px, view_width() * kMaxTextWidthRatio);
   text_obj->text = wrapped;
+  text_obj->font_size = font_px;
   const auto layout = engine::text::layout_text(wrapped, 0.0f, 0.0f, font_px);
   const glm::vec2 size{layout.width, layout.height};
   const glm::vec2 center = shrooms::screen::norm_to_pixels(center_norm);
@@ -1165,7 +1166,7 @@ inline void init() {
   title_transform = arena::create<transform::NoRotationTransform>();
   title_entity->add(title_transform);
   title_entity->add(arena::create<layers::ConstLayer>(9));
-  title_text = arena::create<text::TextObject>("", 24.0f);
+  title_text = arena::create<text::TextObject>("", title_font_px());
   title_entity->add(title_text);
   title_hidden = arena::create<hidden::HiddenObject>();
   title_entity->add(title_hidden);
@@ -1175,7 +1176,7 @@ inline void init() {
   hint_transform = arena::create<transform::NoRotationTransform>();
   hint_entity->add(hint_transform);
   hint_entity->add(arena::create<layers::ConstLayer>(9));
-  hint_text = arena::create<text::TextObject>("", 18.0f);
+  hint_text = arena::create<text::TextObject>("", hint_font_px());
   hint_entity->add(hint_text);
   hint_color = arena::create<color::OneColor>(glm::vec4{0.95f, 0.95f, 0.95f, 1.0f});
   hint_entity->add(hint_color);

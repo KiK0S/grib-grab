@@ -31,7 +31,7 @@ namespace scoreboard {
 
 struct Config {
   glm::vec2 icon_scale = glm::vec2(0.05f, 0.05f);
-  float row_spacing = 0.115f;
+  float row_spacing = 0.135f;
   float row_offset_x_px = 8.0f;
   float row_icon_gap_px = 10.0f;
   float panel_min_height_px = 142.0f;
@@ -41,8 +41,8 @@ struct Config {
   float shake_duration = 0.45f;
   float shake_amplitude_px = 10.0f;
   float shake_frequency = 38.0f;
-  float text_font_px = 20.0f;
-  float score_font_px = 20.0f;
+  float text_font_px = 24.0f;
+  float score_font_px = 24.0f;
   glm::vec4 text_color = glm::vec4(1.0f);
   int layer = 90;
 } config;
@@ -401,6 +401,7 @@ inline void update_score_layout() {
 
   const std::string value = std::to_string(current_score);
   score_text->text = value;
+  score_text->font_size = config.score_font_px;
   const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, config.score_font_px);
   const glm::vec2 size{layout.width, layout.height};
   score_text_transform->pos = score_anchor_px() - size * 0.5f;
@@ -447,6 +448,7 @@ inline void update_entry_layout(Entry& entry) {
 
   const std::string value = recipe_score_text_value(entry);
   entry.score_text->text = value;
+  entry.score_text->font_size = config.text_font_px;
   const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, config.text_font_px);
   const glm::vec2 text_size{layout.width, layout.height};
   const auto* sprite = entry.icon ? entry.icon->get<render_system::SpriteRenderable>() : nullptr;
