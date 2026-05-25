@@ -35,6 +35,7 @@
 #include "ambient_layers.hpp"
 #include "vfx.hpp"
 #include "camera_shake.hpp"
+#include "panel_occlusion_fx.hpp"
 #include "score_hud.hpp"
 #include "shrooms_screen.hpp"
 #include "shrooms_texture_sizing.hpp"
@@ -224,6 +225,93 @@ struct FamiliarSprite : public render_system::ImplicitSkeletonedSprite {
   float model_scale = 1.0f;
   float model_rotation_rad = 0.0f;
   render_system::ImplicitWarpPointGenerator idle_point_generator{};
+};
+
+struct FamiliarMaskRenderable : public render_system::Renderable {
+  explicit FamiliarMaskRenderable(FamiliarSprite* source)
+      : render_system::Renderable(), source(source) {
+    geometry_id = engine::resources::register_geometry(
+        "familiar_alpha_mask_" + std::to_string(reinterpret_cast<uintptr_t>(this)));
+    if (source) {
+      sync_geometry(source->size);
+    }
+  }
+  ~FamiliarMaskRenderable() override { Component::component_count--; }
+
+  engine::ShaderId shader_id() const override {
+    return panel_occlusion_fx::implicit_alpha_mask_shader_id();
+  }
+
+  engine::RenderTargetId render_target() const override {
+    return panel_occlusion_fx::kMushroomMaskTarget;
+  }
+
+  void emit(engine::RenderPass& pass) override {
+    if (!source || !entity || entity->is_pending_deletion()) return;
+    auto* transform = entity->get<transform::TransformObject>();
+    if (!transform) return;
+
+    sync_geometry(source->size);
+    if (!uploaded) {
+      pass.uploads.push_back(engine::GeometryUpload{geometry_id, geometry});
+      uploaded = true;
+    }
+
+    engine::UIColor color{1.0f, 1.0f, 1.0f, 1.0f};
+    if (auto* colored = entity->get<color::ColoredObject>()) {
+      const auto c = colored->get_color();
+      color = engine::UIColor{c.x, c.y, c.z, c.w};
+    }
+
+    const glm::vec2 pos = transform->get_pos();
+    const float half_w = source->size.x * 0.5f;
+    const float half_h = source->size.y * 0.5f;
+    const float safe_scale = std::max(0.001f, source->model_scale);
+    const engine::Mat4 view_offset =
+        engine::mat4_translate(render_system::view_offset_x, render_system::view_offset_y, 0.0f);
+    const engine::Mat4 to_center = engine::mat4_translate(pos.x + half_w, pos.y + half_h, 0.0f);
+    const engine::Mat4 rotation = engine::mat4_rotate_z(source->model_rotation_rad);
+    const engine::Mat4 scale = engine::mat4_scale(safe_scale, safe_scale, 1.0f);
+    const engine::Mat4 from_center = engine::mat4_translate(-half_w, -half_h, 0.0f);
+
+    engine::DrawItem item{};
+    item.geometry_id = geometry_id;
+    item.model = engine::mat4_mul(
+        view_offset,
+        engine::mat4_mul(to_center,
+                         engine::mat4_mul(rotation, engine::mat4_mul(scale, from_center))));
+    item.color = color;
+    item.texture_id = source->texture_id;
+
+    source->generated_points.clear();
+    if (source->point_generator) {
+      source->point_generator(static_cast<float>(ecs::context().time_seconds),
+                              source->generated_points);
+    }
+    const std::vector<render_system::ImplicitWarpPoint>& active_points =
+        source->generated_points.empty() ? source->control_points : source->generated_points;
+    render_system::append_implicit_warp_uniforms(item, active_points, source->warp_power,
+                                                 source->warp_epsilon,
+                                                 source->warp_rest_weight);
+    pass.draw_items.push_back(std::move(item));
+  }
+
+  void sync_geometry(const glm::vec2& next_size) {
+    if (geometry_id == engine::kInvalidGeometryId) return;
+    if (!geometry.vertices.empty() && std::abs(size.x - next_size.x) < 0.5f &&
+        std::abs(size.y - next_size.y) < 0.5f) {
+      return;
+    }
+    size = next_size;
+    geometry = engine::geometry::make_quad(size.x, size.y);
+    uploaded = false;
+  }
+
+  FamiliarSprite* source = nullptr;
+  glm::vec2 size{0.0f, 0.0f};
+  engine::GeometryId geometry_id = engine::kInvalidGeometryId;
+  engine::GeometryData geometry{};
+  bool uploaded = false;
 };
 
 struct FamiliarLogic : public dynamic::DynamicObject {
@@ -863,6 +951,7 @@ inline void init_familiars() {
         };
     familiar_sprite->idle_point_generator = familiar_sprite->point_generator;
     entity->add(familiar_sprite);
+    entity->add(arena::create<FamiliarMaskRenderable>(familiar_sprite));
     auto* hidden = arena::create<hidden::HiddenObject>();
     hidden->hide();
     entity->add(hidden);

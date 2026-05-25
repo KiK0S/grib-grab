@@ -34,6 +34,12 @@ inline engine::ShaderId alpha_mask_shader_id() {
   return id;
 }
 
+inline engine::ShaderId implicit_alpha_mask_shader_id() {
+  static const engine::ShaderId id =
+      engine::resources::register_shader("implicit_alpha_mask_2d");
+  return id;
+}
+
 inline engine::ShaderId composite_shader_id() {
   static const engine::ShaderId id = engine::resources::register_shader("shrooms_composite_2d");
   return id;
