@@ -1037,10 +1037,14 @@ struct PlayerController : public dynamic::DynamicObject {
     }
     deploy_pressed_last = deploy_pressed;
 
-    const bool fire_pressed = levels::shooting_enabled() &&
-        (controls::is_down(controls::Action::Shoot) || touchscreen::fire_pressed);
+    const bool fire_pressed =
+        controls::is_down(controls::Action::Shoot) || touchscreen::fire_pressed;
     if (fire_pressed && !fire_pressed_last) {
-      launch_strike_familiar();
+      if (levels::shooting_enabled()) {
+        launch_strike_familiar();
+      } else {
+        flash_blocked_movement();
+      }
     }
     fire_pressed_last = fire_pressed;
 

@@ -910,7 +910,6 @@
       controlState.shootEnabled = queryShootEnabled();
       setMobileLayout(shouldUseMobileTouchLayout());
       updateControlLegend();
-      fireButton.toggleAttribute("disabled", !controlState.shootEnabled);
       fireButton.setAttribute("aria-disabled", controlState.shootEnabled ? "false" : "true");
       if (!controlState.shootEnabled) {
         releaseButtonPointers(controlState.firePointers, ACTION_SHOOT);
@@ -959,9 +958,6 @@
     function onActionPointerDown(evt, setRef, action) {
       evt.preventDefault();
       if (!controlState.controlsActive) {
-        return;
-      }
-      if (action === ACTION_SHOOT && !controlState.shootEnabled) {
         return;
       }
       setRef.add(evt.pointerId);
