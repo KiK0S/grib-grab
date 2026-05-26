@@ -45,15 +45,15 @@
 namespace menu {
 
 constexpr size_t kMaxLevelLines = 10;
-constexpr float kMenuTextX = -0.8f;
+constexpr float kMenuTextX = -0.86f;
 constexpr float kLeaderboardTextX = kMenuTextX;
 constexpr float kMenuTextYOffsetNorm = 0.1f;
 constexpr float kModeSwitchCenterX = 0.44f;
-constexpr float kModeSwitchCenterY = 0.28f;
+constexpr float kModeSwitchCenterY = 0.55f;
 constexpr size_t kLeaderboardLines = static_cast<size_t>(leaderboard::kMaxEntries);
 constexpr size_t kNameMaxLength = 12;
 constexpr const char* kDefaultMenuBackgroundTexture = "background";
-constexpr float kMenuLineIconWidthPx = 34.0f;
+constexpr float kMenuLineIconWidthPx = 44.0f;
 constexpr float kMenuLineIconGapPx = 8.0f;
 constexpr int kKeyArrowUpDom = 38;
 constexpr int kKeyArrowDownDom = 40;
@@ -729,9 +729,9 @@ inline void refresh_instruction_line() {
 
 inline glm::vec2 mode_switch_segment_size() {
   const float width =
-      std::clamp(static_cast<float>(shrooms::screen::view_width) * 0.12f, 86.0f, 122.0f);
+      std::clamp(static_cast<float>(shrooms::screen::view_width) * 0.145f, 104.0f, 148.0f);
   const float height =
-      std::clamp(static_cast<float>(shrooms::screen::view_height) * 0.052f, 44.0f, 54.0f);
+      std::clamp(static_cast<float>(shrooms::screen::view_height) * 0.064f, 54.0f, 66.0f);
   return glm::vec2{width, height};
 }
 
@@ -2318,11 +2318,11 @@ inline void init() {
 
   status_line = make_text_line(glm::vec2{kMenuTextX, 0.85f}, 22.0f, 6);
   instruction_line = make_text_line(glm::vec2{kMenuTextX, 0.71f}, 20.0f, 6);
-  mode_line = make_text_line(glm::vec2{kModeSwitchCenterX, kModeSwitchCenterY}, 18.0f, 6);
-  mode_recipe_line = make_text_line(glm::vec2{kModeSwitchCenterX, kModeSwitchCenterY}, 18.0f, 6);
-  settings_line = make_text_line(glm::vec2{kMenuTextX, 0.48f}, 19.0f, 6);
+  mode_line = make_text_line(glm::vec2{kModeSwitchCenterX, kModeSwitchCenterY}, 22.0f, 6);
+  mode_recipe_line = make_text_line(glm::vec2{kModeSwitchCenterX, kModeSwitchCenterY}, 22.0f, 6);
+  settings_line = make_text_line(glm::vec2{kMenuTextX, 0.72f}, 25.0f, 6);
   audio_line = make_text_line(glm::vec2{kMenuTextX, 0.42f}, 19.0f, 6);
-  tutorial_line = make_text_line(glm::vec2{kMenuTextX, 0.28f}, 20.0f, 6);
+  tutorial_line = make_text_line(glm::vec2{kMenuTextX, 0.28f}, 22.0f, 6);
   credits_line = make_text_line(glm::vec2{kMenuTextX, -0.92f}, 18.0f, 6);
   update_text(credits_line, "Game by KiK0S, art by deadmarla.");
 
@@ -2347,14 +2347,15 @@ inline void init() {
   ensure_line_slider(audio_line);
   set_line_slider_value(audio_line, shrooms::audio::volume_slider_value());
 
-  const glm::vec2 base = glm::vec2{kMenuTextX, 0.25f};
-  const float spacing = 0.11f;
+  const glm::vec2 base = glm::vec2{kMenuTextX, 0.39f};
+  const float main_spacing = 0.13f;
   for (size_t i = 0; i < kMaxLevelLines; ++i) {
-    const glm::vec2 pos = base - glm::vec2(0.0f, spacing * static_cast<float>(i));
-    level_lines[i] = make_text_line(pos, 20.0f, 6);
+    const glm::vec2 pos = base - glm::vec2(0.0f, main_spacing * static_cast<float>(i));
+    level_lines[i] = make_text_line(pos, 26.0f, 6);
     style_menu_action(level_lines[i]);
   }
 
+  const float spacing = 0.11f;
   objective_title = make_text_line(glm::vec2{kMenuTextX, 0.65f}, 24.0f, 6);
   objective_level = make_text_line(glm::vec2{kMenuTextX, 0.48f}, 20.0f, 6);
   const glm::vec2 objective_base = glm::vec2{kMenuTextX, 0.25f};

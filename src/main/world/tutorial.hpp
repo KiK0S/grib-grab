@@ -64,7 +64,6 @@ inline float stage_timer = 0.0f;
 inline bool stage_restart_pending = false;
 inline Stage pending_restart_stage = Stage::None;
 inline Stage pending_restart_origin_stage = Stage::None;
-inline std::string pending_restart_feedback{};
 
 inline ecs::Entity* title_entity = nullptr;
 inline text::TextObject* title_text = nullptr;
@@ -455,7 +454,7 @@ inline bool validate_trap_placements() {
   return true;
 }
 
-inline void set_stage(Stage next, const std::string& feedback = "");
+inline void set_stage(Stage next);
 
 inline std::vector<std::pair<std::string, int>> tutorial_recipe() {
   return {{good_mushroom_type, kRecipeGoodTarget}, {bad_mushroom_type, kRecipeBadTarget}};
@@ -476,23 +475,20 @@ inline void hide_tutorial_recipe_board() {
   scoreboard::hide();
 }
 
-inline void restart_stage(const std::string& reason, Stage restart_stage = Stage::None) {
+inline void restart_stage(Stage restart_stage = Stage::None) {
   if (stage_restart_pending) return;
   pending_restart_origin_stage = stage;
   pending_restart_stage = restart_stage == Stage::None ? stage : restart_stage;
-  pending_restart_feedback = reason;
   stage_restart_pending = true;
   deferred::fire_deferred(
       []() {
         const Stage restart = pending_restart_stage;
         const Stage origin = pending_restart_origin_stage;
-        const std::string feedback = pending_restart_feedback;
         stage_restart_pending = false;
         pending_restart_stage = Stage::None;
         pending_restart_origin_stage = Stage::None;
-        pending_restart_feedback.clear();
         if (!active || stage != origin) return;
-        set_stage(restart, feedback);
+        set_stage(restart);
       },
       0);
 }
@@ -502,7 +498,7 @@ inline ecs::Entity* spawn_single(const std::string& type, float x_px, float y_no
       type, glm::vec2{x_px, view_height() * y_norm});
 }
 
-inline void spawn_catch_practice_mushroom(const std::string& feedback = "") {
+inline void spawn_catch_practice_mushroom() {
   clear_stage_entities(false);
   static constexpr std::array<float, kPracticeTarget> kCatchLanes{0.28f, 0.72f, 0.42f};
   const size_t lane = static_cast<size_t>(catch_spawn_index % kPracticeTarget);
@@ -511,16 +507,15 @@ inline void spawn_catch_practice_mushroom(const std::string& feedback = "") {
   update_line(hint_text, hint_transform,
               "Catch " + std::to_string(kPracticeTarget) + " borovik mushrooms: " +
                   std::to_string(catch_practice_catches) + "/" +
-                  std::to_string(kPracticeTarget) + "." +
-                  (feedback.empty() ? "" : ("  " + feedback)),
+                  std::to_string(kPracticeTarget) + ".",
               hint_font_px(), kHintCenterNorm);
 }
 
-inline void enter_catch_practice_stage(const std::string& feedback = "") {
+inline void enter_catch_practice_stage() {
   clear_stage_entities();
   catch_practice_catches = 0;
   catch_spawn_index = 0;
-  spawn_catch_practice_mushroom(feedback);
+  spawn_catch_practice_mushroom();
 }
 
 inline void enter_place_three_traps_stage() {
@@ -557,7 +552,7 @@ inline void spawn_trap_demo_mushrooms() {
       good_mushroom_type, glm::vec2{trap_familiar_centers_px[2].x, view_height() * 0.12f});
 }
 
-inline void start_pair_practice_countdown(const std::string& = "") {
+inline void start_pair_practice_countdown() {
   if (pair_practice_countdown_started) return;
   pair_practice_countdown_started = true;
   clear_tutorial_text();
@@ -570,14 +565,14 @@ inline void start_pair_practice_countdown(const std::string& = "") {
   });
 }
 
-inline void enter_pair_practice_intro_stage(const std::string& feedback = "") {
+inline void enter_pair_practice_intro_stage() {
   clear_stage_entities();
   player::reset_familiars();
   pair_practice_countdown_started = false;
-  start_pair_practice_countdown(feedback);
+  start_pair_practice_countdown();
 }
 
-inline void spawn_pair_practice_pair(const std::string& feedback = "") {
+inline void spawn_pair_practice_pair() {
   clear_stage_entities(false);
   static constexpr std::array<std::pair<float, float>, kPracticeTarget> kPairs{
       std::pair<float, float>{0.18f, 0.82f},
@@ -592,18 +587,17 @@ inline void spawn_pair_practice_pair(const std::string& feedback = "") {
   update_line(hint_text, hint_transform,
               "Use bats and movement to collect three far-apart pairs: " +
                   std::to_string(pair_practice_pairs_completed) + "/" +
-                  std::to_string(kPracticeTarget) + "." +
-                  (feedback.empty() ? "" : ("  " + feedback)),
+                  std::to_string(kPracticeTarget) + ".",
               hint_font_px(), kHintCenterNorm);
 }
 
-inline void enter_pair_practice_stage(const std::string& feedback = "") {
+inline void enter_pair_practice_stage() {
   clear_stage_entities();
   player::set_movement_locked(false);
   player::reset_familiars();
   pair_practice_pairs_completed = 0;
   pair_spawn_index = 0;
-  spawn_pair_practice_pair(feedback);
+  spawn_pair_practice_pair();
 }
 
 inline glm::vec2 shoot_spawn_center() {
@@ -636,24 +630,23 @@ inline ecs::Entity* spawn_shoot_mukhomor_target(const glm::vec2& center) {
   return entity;
 }
 
-inline void spawn_shoot_practice_target(const std::string& feedback = "") {
+inline void spawn_shoot_practice_target() {
   clear_stage_entities(false);
   const glm::vec2 center = shoot_spawn_center();
   stage_entity_a = spawn_shoot_mukhomor_target(center);
   ++shoot_spawn_index;
   update_line(hint_text, hint_transform,
               "Shoot three mukhomors with W: " + std::to_string(shoot_practice_shots) +
-                  "/" + std::to_string(kPracticeTarget) + "." +
-                  (feedback.empty() ? "" : ("  " + feedback)),
+                  "/" + std::to_string(kPracticeTarget) + ".",
               hint_font_px(), kHintCenterNorm);
 }
 
-inline void enter_shoot_practice_stage(const std::string& feedback = "") {
+inline void enter_shoot_practice_stage() {
   clear_stage_entities();
   player::reset_familiars();
   shoot_practice_shots = 0;
   shoot_spawn_index = 0;
-  spawn_shoot_practice_target(feedback);
+  spawn_shoot_practice_target();
 }
 
 inline std::array<glm::vec2, 3> recipe_spawn_centers() {
@@ -718,7 +711,7 @@ inline void start_recipe_countdown() {
   });
 }
 
-inline void enter_recipe_intro_stage(const std::string& = "") {
+inline void enter_recipe_intro_stage() {
   clear_stage_entities();
   player::reset_familiars();
   recipe_good_catches = 0;
@@ -750,7 +743,7 @@ inline void maybe_complete_recipe_scenario() {
   }
 }
 
-inline void set_stage(Stage next, const std::string& feedback) {
+inline void set_stage(Stage next) {
   stage = next;
   stage_timer = 0.0f;
   hide_marker();
@@ -766,7 +759,6 @@ inline void set_stage(Stage next, const std::string& feedback) {
     clear_tutorial_text();
   }
 
-  const std::string base_feedback = feedback.empty() ? "" : ("  " + feedback);
   switch (stage) {
     case Stage::MoveLeft: {
       clear_stage_entities();
@@ -775,7 +767,7 @@ inline void set_stage(Stage next, const std::string& feedback) {
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
                   "Move left with " + controls::bound_key_label(controls::Action::MoveLeft) +
-                      " to the glowing marker." + base_feedback,
+                      " to the glowing marker.",
                   hint_font_px(), kHintCenterNorm);
       show_marker(glm::vec2{view_width() * 0.20f, view_height() * 0.82f},
                   engine::UIColor{0.45f, 0.95f, 0.6f, 0.9f});
@@ -787,7 +779,7 @@ inline void set_stage(Stage next, const std::string& feedback) {
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
                   "Move right with " + controls::bound_key_label(controls::Action::MoveRight) +
-                      " to the glowing marker." + base_feedback,
+                      " to the glowing marker.",
                   hint_font_px(), kHintCenterNorm);
       show_marker(glm::vec2{view_width() * 0.80f, view_height() * 0.82f},
                   engine::UIColor{0.45f, 0.95f, 0.6f, 0.9f});
@@ -796,7 +788,7 @@ inline void set_stage(Stage next, const std::string& feedback) {
     case Stage::CatchPractice: {
       update_line(title_text, title_transform, "Tutorial: Catch", title_font_px(),
                   kTitleCenterNorm);
-      enter_catch_practice_stage(feedback);
+      enter_catch_practice_stage();
       break;
     }
     case Stage::PlaceThreeTraps: {
@@ -804,8 +796,7 @@ inline void set_stage(Stage next, const std::string& feedback) {
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
                   "Send three bats with " + controls::bound_key_label(controls::Action::Trap) +
-                      " to the blue targets. Off-target bats reset this step." +
-                      base_feedback,
+                      " to the blue targets. Off-target bats reset this step.",
                   hint_font_px(), kHintCenterNorm);
       enter_place_three_traps_stage();
       break;
@@ -814,8 +805,7 @@ inline void set_stage(Stage next, const std::string& feedback) {
       update_line(title_text, title_transform, "Tutorial: Bat Demo", title_font_px(),
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
-                  "Move to the border marker and wait while the bats collect everything." +
-                      base_feedback,
+                  "Move to the border marker and wait while the bats collect everything.",
                   hint_font_px(), kHintCenterNorm);
       enter_trap_collect_demo_stage();
       break;
@@ -823,13 +813,13 @@ inline void set_stage(Stage next, const std::string& feedback) {
     case Stage::TrapPairIntro: {
       update_line(title_text, title_transform, "Tutorial: Bat Practice", title_font_px(),
                   kTitleCenterNorm);
-      enter_pair_practice_intro_stage(feedback);
+      enter_pair_practice_intro_stage();
       break;
     }
     case Stage::TrapPairPractice: {
       update_line(title_text, title_transform, "Tutorial: Bat Practice", title_font_px(),
                   kTitleCenterNorm);
-      enter_pair_practice_stage(feedback);
+      enter_pair_practice_stage();
       break;
     }
     case Stage::ShootPractice: {
@@ -837,22 +827,20 @@ inline void set_stage(Stage next, const std::string& feedback) {
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
                   "Use " + controls::bound_key_label(controls::Action::Shoot) +
-                      " to shoot the mukhomor." +
-                      base_feedback,
+                      " to shoot the mukhomor.",
                   hint_font_px(), kHintCenterNorm);
-      enter_shoot_practice_stage(feedback);
+      enter_shoot_practice_stage();
       break;
     }
     case Stage::RecipeIntro: {
-      enter_recipe_intro_stage(feedback);
+      enter_recipe_intro_stage();
       break;
     }
     case Stage::RecipeScenario: {
       update_line(title_text, title_transform, "Tutorial: Recipe", title_font_px(),
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
-                  "Catch the two borovik and shoot the mukhomor." +
-                      base_feedback,
+                  "Catch the two borovik and shoot the mukhomor.",
                   hint_font_px(), kHintCenterNorm);
       enter_recipe_scenario_stage();
       break;
@@ -885,7 +873,6 @@ inline void start() {
   stage_restart_pending = false;
   pending_restart_stage = Stage::None;
   pending_restart_origin_stage = Stage::None;
-  pending_restart_feedback.clear();
   player::set_movement_locked(false);
   hide_tutorial_lives();
   hide_tutorial_recipe_board();
@@ -899,7 +886,6 @@ inline void stop() {
   stage_restart_pending = false;
   pending_restart_stage = Stage::None;
   pending_restart_origin_stage = Stage::None;
-  pending_restart_feedback.clear();
   clear_stage_entities();
   clear_recipe_preview();
   hide_trap_markers();
@@ -939,7 +925,7 @@ inline void on_mushroom_caught(const std::string&, ecs::Entity* entity, bool fro
                          is_stage_entity(entity, stage_entity_c);
     if (!tracked) return;
     if (!from_familiar) {
-      restart_stage("Let the bats collect these.");
+      restart_stage();
       return;
     }
     if (is_stage_entity(entity, stage_entity_a) && !stage_a_done) {
@@ -982,13 +968,13 @@ inline void on_mushroom_caught(const std::string&, ecs::Entity* entity, bool fro
   }
   if (stage == Stage::ShootPractice) {
     if (is_stage_entity(entity, stage_entity_a)) {
-      restart_stage("Shoot the mukhomor instead of catching it.");
+      restart_stage();
     }
     return;
   }
   if (stage == Stage::RecipeScenario) {
     if (is_stage_entity(entity, stage_entity_a)) {
-      restart_stage("Mukhomor must be shot, not caught.", Stage::RecipeIntro);
+      restart_stage(Stage::RecipeIntro);
       return;
     }
     if (is_stage_entity(entity, stage_entity_b) && !stage_b_done) {
@@ -1008,31 +994,31 @@ inline void on_mushroom_missed(const std::string&, ecs::Entity* entity) {
   if (stage_restart_pending) return;
   if (stage == Stage::CatchPractice && is_stage_entity(entity, stage_entity_a)) {
     stage_entity_a = nullptr;
-    spawn_catch_practice_mushroom("It fell. Try another.");
+    spawn_catch_practice_mushroom();
     return;
   }
   if (stage == Stage::TrapCollectDemo &&
       (is_stage_entity(entity, stage_entity_a) || is_stage_entity(entity, stage_entity_b) ||
        is_stage_entity(entity, stage_entity_c))) {
-    restart_stage("A bat missed one. Send the bats again.", Stage::PlaceThreeTraps);
+    restart_stage(Stage::PlaceThreeTraps);
     return;
   }
   if (stage == Stage::TrapPairPractice &&
       (is_stage_entity(entity, stage_entity_a) || is_stage_entity(entity, stage_entity_b))) {
     stage_entity_a = nullptr;
     stage_entity_b = nullptr;
-    spawn_pair_practice_pair("Try that pair again.");
+    spawn_pair_practice_pair();
     return;
   }
   if (stage == Stage::ShootPractice && is_stage_entity(entity, stage_entity_a)) {
     stage_entity_a = nullptr;
-    spawn_shoot_practice_target("Shoot the next mukhomor.");
+    spawn_shoot_practice_target();
     return;
   }
   if (stage == Stage::RecipeScenario &&
       (is_stage_entity(entity, stage_entity_a) || is_stage_entity(entity, stage_entity_b) ||
        is_stage_entity(entity, stage_entity_c))) {
-    restart_stage("Recipe failed. Watch the preview and try again.", Stage::RecipeIntro);
+    restart_stage(Stage::RecipeIntro);
   }
 }
 
@@ -1040,18 +1026,18 @@ inline void on_mushroom_sorted(const std::string&, ecs::Entity* entity) {
   if (!active || !entity) return;
   if (stage_restart_pending) return;
   if (stage == Stage::CatchPractice && is_stage_entity(entity, stage_entity_a)) {
-    restart_stage("This stage needs a catch, not a shot.");
+    restart_stage();
     return;
   }
   if (stage == Stage::TrapCollectDemo &&
       (is_stage_entity(entity, stage_entity_a) || is_stage_entity(entity, stage_entity_b) ||
        is_stage_entity(entity, stage_entity_c))) {
-    restart_stage("Let the bats collect these.", Stage::PlaceThreeTraps);
+    restart_stage(Stage::PlaceThreeTraps);
     return;
   }
   if (stage == Stage::TrapPairPractice &&
       (is_stage_entity(entity, stage_entity_a) || is_stage_entity(entity, stage_entity_b))) {
-    restart_stage("Borovik belongs in the basket.");
+    restart_stage();
     return;
   }
   if (stage == Stage::ShootPractice && is_stage_entity(entity, stage_entity_a)) {
@@ -1073,7 +1059,7 @@ inline void on_mushroom_sorted(const std::string&, ecs::Entity* entity) {
       return;
     }
     if (is_stage_entity(entity, stage_entity_b) || is_stage_entity(entity, stage_entity_c)) {
-      restart_stage("Borovik belongs in the basket.", Stage::RecipeIntro);
+      restart_stage(Stage::RecipeIntro);
     }
   }
 }
@@ -1130,7 +1116,7 @@ struct TutorialController : public dynamic::DynamicObject {
     }
     if (stage == Stage::TrapCollectDemo) {
       if (planted_familiar_count() < kTrapTargetCount && !trap_demo_spawned) {
-        set_stage(Stage::PlaceThreeTraps, "Send all three bats first.");
+        set_stage(Stage::PlaceThreeTraps);
         return;
       }
       const bool reached_marker =
