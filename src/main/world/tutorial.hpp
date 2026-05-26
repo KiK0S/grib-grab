@@ -114,6 +114,8 @@ inline bool pair_practice_countdown_started = false;
 inline bool recipe_intro_countdown_started = false;
 inline bool recipe_bad_shot = false;
 inline std::array<ecs::Entity*, 3> recipe_preview_entities{};
+inline std::array<glm::vec2, 2> pair_marker_centers_px{};
+inline std::array<glm::vec2, 3> recipe_marker_centers_px{};
 
 inline constexpr int kPracticeTarget = 3;
 inline constexpr int kRecipeGoodTarget = 2;
@@ -349,6 +351,56 @@ inline void show_trap_markers() {
   }
 }
 
+inline float trap_target_y_px();
+
+inline glm::vec2 bat_drop_marker_center(const glm::vec2& mushroom_center_px) {
+  return glm::vec2{mushroom_center_px.x, trap_target_y_px()};
+}
+
+inline void set_drop_marker(size_t index,
+                            bool visible,
+                            const glm::vec2& mushroom_center_px,
+                            const engine::UIColor& color) {
+  if (index >= trap_marker_hidden.size()) return;
+  if (auto* circle = trap_marker_circles[index]) {
+    circle->color = color;
+  }
+  if (auto* hidden = trap_marker_hidden[index]) {
+    hidden->set_visible(visible);
+  }
+  if (visible) {
+    set_trap_marker_center(static_cast<int>(index),
+                           bat_drop_marker_center(mushroom_center_px));
+  }
+}
+
+inline void hide_drop_marker(size_t index) {
+  if (index >= trap_marker_hidden.size()) return;
+  if (auto* hidden = trap_marker_hidden[index]) {
+    hidden->hide();
+  }
+}
+
+inline engine::UIColor bat_target_color() {
+  return engine::UIColor{0.55f, 0.72f, 1.0f, 0.92f};
+}
+
+inline engine::UIColor shoot_target_color() {
+  return engine::UIColor{1.0f, 0.42f, 0.28f, 0.92f};
+}
+
+inline void show_pair_drop_markers() {
+  set_drop_marker(0, !stage_a_done, pair_marker_centers_px[0], bat_target_color());
+  set_drop_marker(1, !stage_b_done, pair_marker_centers_px[1], bat_target_color());
+  hide_drop_marker(2);
+}
+
+inline void show_recipe_drop_markers() {
+  set_drop_marker(0, !stage_a_done, recipe_marker_centers_px[0], shoot_target_color());
+  set_drop_marker(1, !stage_b_done, recipe_marker_centers_px[1], bat_target_color());
+  set_drop_marker(2, !stage_c_done, recipe_marker_centers_px[2], bat_target_color());
+}
+
 inline void clear_stage_entities(bool delete_entities = true) {
   auto clear_one = [&](ecs::Entity*& entity) {
     if (!entity) return;
@@ -581,9 +633,14 @@ inline void spawn_pair_practice_pair() {
   };
   const auto pair = kPairs[static_cast<size_t>(pair_spawn_index % kPracticeTarget)];
   pair_current_catches = 0;
-  stage_entity_a = spawn_single(good_mushroom_type, view_width() * pair.first, 0.12f);
-  stage_entity_b = spawn_single(good_mushroom_type, view_width() * pair.second, 0.12f);
+  pair_marker_centers_px = {
+      glm::vec2{view_width() * pair.first, view_height() * 0.12f},
+      glm::vec2{view_width() * pair.second, view_height() * 0.12f},
+  };
+  stage_entity_a = spawn_single(good_mushroom_type, pair_marker_centers_px[0].x, 0.12f);
+  stage_entity_b = spawn_single(good_mushroom_type, pair_marker_centers_px[1].x, 0.12f);
   ++pair_spawn_index;
+  show_pair_drop_markers();
   update_line(hint_text, hint_transform,
               "Use bats and movement to collect three far-apart pairs: " +
                   std::to_string(pair_practice_pairs_completed) + "/" +
@@ -732,9 +789,11 @@ inline void enter_recipe_scenario_stage() {
   show_tutorial_recipe_board();
   scoreboard::set_layout(scoreboard::LayoutState::Corner);
   const auto centers = recipe_spawn_centers();
+  recipe_marker_centers_px = centers;
   stage_entity_a = levels::spawn_mushroom_now(bad_mushroom_type, centers[0]);
   stage_entity_b = levels::spawn_mushroom_now(good_mushroom_type, centers[1]);
   stage_entity_c = levels::spawn_mushroom_now(good_mushroom_type, centers[2]);
+  show_recipe_drop_markers();
 }
 
 inline void maybe_complete_recipe_scenario() {
@@ -796,7 +855,7 @@ inline void set_stage(Stage next) {
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
                   "Send three bats with " + controls::bound_key_label(controls::Action::Trap) +
-                      " to the blue targets. Off-target bats reset this step.",
+                      " to the blue targets.",
                   hint_font_px(), kHintCenterNorm);
       enter_place_three_traps_stage();
       break;
@@ -963,6 +1022,8 @@ inline void on_mushroom_caught(const std::string&, ecs::Entity* entity, bool fro
       } else {
         spawn_pair_practice_pair();
       }
+    } else {
+      show_pair_drop_markers();
     }
     return;
   }
@@ -985,6 +1046,7 @@ inline void on_mushroom_caught(const std::string&, ecs::Entity* entity, bool fro
       recipe_good_catches += 1;
     }
     scoreboard::update_score(good_mushroom_type, recipe_good_catches, kRecipeGoodTarget);
+    show_recipe_drop_markers();
     maybe_complete_recipe_scenario();
   }
 }
@@ -1055,6 +1117,7 @@ inline void on_mushroom_sorted(const std::string&, ecs::Entity* entity) {
       recipe_bad_removed = true;
       recipe_bad_shot = true;
       stage_a_done = true;
+      show_recipe_drop_markers();
       maybe_complete_recipe_scenario();
       return;
     }
@@ -1093,12 +1156,7 @@ struct TutorialController : public dynamic::DynamicObject {
       const int planted = planted_familiar_count();
       if (planted > 0) {
         if (!validate_trap_placements()) {
-          player::reset_familiars();
-          reset_trap_targets();
-          show_trap_markers();
-          update_line(hint_text, hint_transform,
-                      "That bat was not on a target. Send all three again.",
-                      hint_font_px(), kHintCenterNorm);
+          set_stage(Stage::PlaceThreeTraps);
           return;
         }
         if (trap_target_filled_count >= kTrapTargetCount) {

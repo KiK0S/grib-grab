@@ -195,13 +195,13 @@ inline void suppress_input_for_frames(int frames = 2) {
 
 inline void enter_objective_mode(size_t level_index);
 inline void enter_infinite_objective_mode();
-inline void enter_tutorial_objective_mode();
 inline void enter_game_over_mode();
 inline void enter_main_menu_mode();
 inline void enter_settings_mode();
 inline void begin_started_level_intro(const std::string& title, bool recipe_first = false);
 inline void start_level_from_menu(size_t level_index);
 inline void start_infinite_from_menu();
+inline void start_tutorial_from_menu();
 
 inline std::string infinite_background_texture() {
   if (!levels::parsed_levels.empty()) {
@@ -1248,6 +1248,18 @@ inline void start_infinite_from_menu() {
   begin_started_level_intro(title, levels::game_mode() == levels::GameMode::Recipe);
 }
 
+inline void start_tutorial_from_menu() {
+  tutorial::stop();
+  awaiting_name_entry = false;
+  show_leaderboard = false;
+  text_input::end();
+  pending_level_index = levels::tutorial_menu_index();
+  has_pending_level = true;
+  pending_infinite = false;
+  pending_tutorial = true;
+  start_pending_level();
+}
+
 inline void enter_objective_mode(size_t level_index) {
   if (level_index >= levels::parsed_levels.size()) return;
   awaiting_name_entry = false;
@@ -1272,38 +1284,6 @@ inline void enter_infinite_objective_mode() {
   levels::prepare_infinite_preview();
   const std::string label = infinity_objective_label();
   refresh_objective_lines_from_level(levels::infinite_level, label);
-  set_menu_mode(MenuMode::Objective);
-}
-
-inline void enter_tutorial_objective_mode() {
-  awaiting_name_entry = false;
-  show_leaderboard = false;
-  text_input::end();
-  pending_level_index = levels::tutorial_menu_index();
-  has_pending_level = true;
-  pending_infinite = false;
-  pending_tutorial = true;
-
-  update_text(objective_title, "Tutorial");
-  update_text(objective_level, "Learn catching and bats, then recipes");
-  active_objective_lines = 6;
-  const std::array<std::string, 6> lines{
-      "1. Move left and right",
-      "2. Catch three mushrooms",
-      "3. Send three bats",
-      "4. Collect far pairs",
-      "5. Shoot three mukhomors",
-      "6. Complete the recipe",
-  };
-  for (size_t i = 0; i < lines.size(); ++i) {
-    set_line_icon_texture(objective_recipe_lines[i], "");
-    update_text(objective_recipe_lines[i], lines[i]);
-  }
-  for (size_t i = active_objective_lines; i < kMaxLevelLines; ++i) {
-    set_line_icon_texture(objective_recipe_lines[i], "");
-    update_text(objective_recipe_lines[i], "");
-  }
-  update_text(objective_hint, "Press Enter or tap to start tutorial");
   set_menu_mode(MenuMode::Objective);
 }
 
@@ -1659,7 +1639,7 @@ struct MenuController : public dynamic::DynamicObject {
       return;
     }
     if (slot == kTutorialMainSlot) {
-      enter_tutorial_objective_mode();
+      start_tutorial_from_menu();
       return;
     }
     if (slot == kSettingsMainSlot) {
@@ -1856,7 +1836,7 @@ struct MenuController : public dynamic::DynamicObject {
       if (levels::last_result.infinite_mode) {
         start_infinite_from_menu();
       } else if (levels::last_result.tutorial_mode) {
-        enter_tutorial_objective_mode();
+        start_tutorial_from_menu();
       } else {
         start_level_from_menu(restart_index);
       }
@@ -1994,7 +1974,7 @@ struct MenuController : public dynamic::DynamicObject {
         if (evt.kind != engine::InputKind::KeyDown) continue;
         const int key = input::normalize_key_code(evt.key_code);
         if (key == 'T') {
-          enter_tutorial_objective_mode();
+          start_tutorial_from_menu();
           return;
         }
         if (key == 'V') {
@@ -2440,8 +2420,7 @@ inline void init() {
 
   enter_main_menu_mode();
   if (!levels::has_completed_tutorial()) {
-    enter_tutorial_objective_mode();
-    start_pending_level();
+    start_tutorial_from_menu();
   }
 }
 
