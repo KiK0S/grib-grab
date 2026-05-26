@@ -49,7 +49,7 @@ constexpr float kMenuTextX = -0.8f;
 constexpr float kLeaderboardTextX = kMenuTextX;
 constexpr float kMenuTextYOffsetNorm = 0.1f;
 constexpr float kModeSwitchCenterX = 0.44f;
-constexpr float kModeSwitchCenterY = 0.56f;
+constexpr float kModeSwitchCenterY = 0.28f;
 constexpr size_t kLeaderboardLines = static_cast<size_t>(leaderboard::kMaxEntries);
 constexpr size_t kNameMaxLength = 12;
 constexpr const char* kDefaultMenuBackgroundTexture = "background";
@@ -729,7 +729,7 @@ inline void refresh_instruction_line() {
 
 inline glm::vec2 mode_switch_segment_size() {
   const float width =
-      std::clamp(static_cast<float>(shrooms::screen::view_width) * 0.15f, 112.0f, 146.0f);
+      std::clamp(static_cast<float>(shrooms::screen::view_width) * 0.12f, 86.0f, 122.0f);
   const float height =
       std::clamp(static_cast<float>(shrooms::screen::view_height) * 0.052f, 44.0f, 54.0f);
   return glm::vec2{width, height};
@@ -762,13 +762,16 @@ inline void set_line_fixed_button(TextLine& line,
 inline void layout_mode_switch() {
   const glm::vec2 segment_size = mode_switch_segment_size();
   const float gap_px = std::clamp(segment_size.x * 0.035f, 4.0f, 6.0f);
-  const float total_width = segment_size.x * 2.0f + gap_px;
+  const float total_width = segment_size.x * 3.0f + gap_px * 2.0f;
   const glm::vec2 center = shrooms::screen::norm_to_pixels(
       glm::vec2{kModeSwitchCenterX, kModeSwitchCenterY + kMenuTextYOffsetNorm});
   const glm::vec2 top_left = center - glm::vec2{total_width, segment_size.y} * 0.5f;
   set_line_fixed_button(mode_line, top_left, segment_size);
   set_line_fixed_button(mode_recipe_line,
                         top_left + glm::vec2{segment_size.x + gap_px, 0.0f},
+                        segment_size);
+  set_line_fixed_button(tutorial_line,
+                        top_left + glm::vec2{(segment_size.x + gap_px) * 2.0f, 0.0f},
                         segment_size);
 }
 
@@ -782,18 +785,21 @@ inline engine::UIColor mode_switch_active_color(levels::GameMode mode) {
   }
 }
 
+inline engine::UIColor tutorial_switch_color() {
+  return engine::UIColor{0.22f, 0.35f, 0.62f, 0.96f};
+}
+
 inline void style_mode_switch_segment(TextLine& line,
-                                      levels::GameMode segment_mode,
+                                      const engine::UIColor& accent_color,
                                       bool active) {
-  const engine::UIColor active_color = mode_switch_active_color(segment_mode);
   const engine::UIColor inactive_color{0.08f, 0.09f, 0.10f, 0.88f};
   const engine::UIColor inactive_hover{0.18f, 0.20f, 0.23f, 0.96f};
 
-  line.base_button_color = active ? active_color : inactive_color;
-  line.hover_button_color = active ? active_color : inactive_hover;
-  line.selected_button_color = active ? active_color : inactive_hover;
+  line.base_button_color = active ? accent_color : inactive_color;
+  line.hover_button_color = active ? accent_color : inactive_hover;
+  line.selected_button_color = active ? accent_color : inactive_hover;
   line.dimmed_button_color =
-      active ? engine::UIColor{active_color.r, active_color.g, active_color.b, 0.74f}
+      active ? engine::UIColor{accent_color.r, accent_color.g, accent_color.b, 0.74f}
              : engine::UIColor{0.06f, 0.06f, 0.07f, 0.58f};
   line.base_text_color = active ? glm::vec4{1.0f, 1.0f, 1.0f, 1.0f}
                                 : glm::vec4{0.76f, 0.78f, 0.80f, 0.95f};
@@ -805,24 +811,29 @@ inline void style_mode_switch_segment(TextLine& line,
   line.selected_scale = 1.0f;
 }
 
-inline void set_mode_switch_visual_state(bool switch_selected,
+inline void set_mode_switch_visual_state(bool collector_selected,
+                                         bool recipe_selected,
+                                         bool tutorial_selected,
                                          bool collector_hovered,
                                          bool recipe_hovered,
+                                         bool tutorial_hovered,
                                          bool dimmed) {
   const bool collector_active = levels::game_mode() == levels::GameMode::Collector;
-  style_mode_switch_segment(mode_line, levels::GameMode::Collector, collector_active);
-  style_mode_switch_segment(mode_recipe_line, levels::GameMode::Recipe, !collector_active);
-  set_line_visual_state(mode_line, switch_selected && collector_active,
-                        collector_hovered && !collector_active, dimmed);
-  set_line_visual_state(mode_recipe_line, switch_selected && !collector_active,
-                        recipe_hovered && collector_active, dimmed);
+  style_mode_switch_segment(mode_line, mode_switch_active_color(levels::GameMode::Collector),
+                            collector_active);
+  style_mode_switch_segment(mode_recipe_line, mode_switch_active_color(levels::GameMode::Recipe),
+                            !collector_active);
+  style_mode_switch_segment(tutorial_line, tutorial_switch_color(), false);
+  set_line_visual_state(mode_line, collector_selected, collector_hovered, dimmed);
+  set_line_visual_state(mode_recipe_line, recipe_selected, recipe_hovered, dimmed);
+  set_line_visual_state(tutorial_line, tutorial_selected, tutorial_hovered, dimmed);
 }
 
 inline void refresh_mode_line() {
   update_text(mode_line, "Collector");
   update_text(mode_recipe_line, "Recipe");
   layout_mode_switch();
-  set_mode_switch_visual_state(false, false, false, false);
+  set_mode_switch_visual_state(false, false, false, false, false, false, false);
 }
 
 inline void refresh_settings_line() {
@@ -836,6 +847,8 @@ inline void refresh_audio_line() {
 
 inline void refresh_tutorial_line() {
   update_text(tutorial_line, "Tutorial");
+  layout_mode_switch();
+  set_mode_switch_visual_state(false, false, false, false, false, false, false);
 }
 
 inline std::string settings_control_line_text(controls::Action action) {
@@ -876,10 +889,9 @@ inline void refresh_level_lines() {
 
 inline void relayout_main_rows_for_variable_heights() {
   constexpr float gap_px = 12.0f;
-  std::array<TextLine*, kMaxLevelLines + 2> ordered{};
+  std::array<TextLine*, kMaxLevelLines + 1> ordered{};
   size_t count = 0;
   ordered[count++] = &settings_line;
-  ordered[count++] = &tutorial_line;
   for (size_t i = 0; i < active_level_lines && i < kMaxLevelLines; ++i) {
     ordered[count++] = &level_lines[i];
   }
@@ -1349,10 +1361,11 @@ inline void enter_settings_mode() {
 struct MenuController : public dynamic::DynamicObject {
   MenuController() : dynamic::DynamicObject() {}
 
-  static constexpr size_t kModeMainSlot = 0;
-  static constexpr size_t kSettingsMainSlot = 1;
+  static constexpr size_t kCollectorMainSlot = 0;
+  static constexpr size_t kRecipeMainSlot = 1;
   static constexpr size_t kTutorialMainSlot = 2;
-  static constexpr size_t kLevelMainSlotOffset = 3;
+  static constexpr size_t kSettingsMainSlot = 3;
+  static constexpr size_t kLevelMainSlotOffset = 4;
   static constexpr size_t kSettingsVolumeSlot = 0;
   static constexpr size_t kSettingsControlSlotOffset = 1;
   static constexpr size_t kSettingsResetSlot = kSettingsControlSlotOffset + controls::kActionCount;
@@ -1380,7 +1393,8 @@ struct MenuController : public dynamic::DynamicObject {
   }
 
   bool is_main_slot_selectable(size_t slot, size_t current_levels) const {
-    if (slot == kModeMainSlot || slot == kSettingsMainSlot || slot == kTutorialMainSlot) {
+    if (slot == kCollectorMainSlot || slot == kRecipeMainSlot ||
+        slot == kTutorialMainSlot || slot == kSettingsMainSlot) {
       return true;
     }
     const auto level_index = main_slot_level_index(slot, current_levels);
@@ -1389,14 +1403,17 @@ struct MenuController : public dynamic::DynamicObject {
   }
 
   std::optional<size_t> main_slot_at_point(const glm::vec2& point, size_t current_levels) const {
-    if (point_hits_line(mode_line, point) || point_hits_line(mode_recipe_line, point)) {
-      return kModeMainSlot;
+    if (point_hits_line(mode_line, point)) {
+      return kCollectorMainSlot;
     }
-    if (point_hits_line(settings_line, point)) {
-      return kSettingsMainSlot;
+    if (point_hits_line(mode_recipe_line, point)) {
+      return kRecipeMainSlot;
     }
     if (point_hits_line(tutorial_line, point)) {
       return kTutorialMainSlot;
+    }
+    if (point_hits_line(settings_line, point)) {
+      return kSettingsMainSlot;
     }
     auto level_index = level_index_at_point(point);
     if (!level_index || *level_index >= current_levels) {
@@ -1427,6 +1444,13 @@ struct MenuController : public dynamic::DynamicObject {
     const size_t slot_count = main_slot_count(current_levels);
     if (selected_main_slot && *selected_main_slot < slot_count &&
         is_main_slot_selectable(*selected_main_slot, current_levels)) {
+      return;
+    }
+    const size_t preferred_mode_slot =
+        levels::game_mode() == levels::GameMode::Collector ? kCollectorMainSlot : kRecipeMainSlot;
+    if (preferred_mode_slot < slot_count &&
+        is_main_slot_selectable(preferred_mode_slot, current_levels)) {
+      selected_main_slot = preferred_mode_slot;
       return;
     }
     for (size_t slot = 0; slot < slot_count; ++slot) {
@@ -1486,8 +1510,7 @@ struct MenuController : public dynamic::DynamicObject {
     for (size_t i = 0; i < kMaxLevelLines; ++i) {
       set_line_visual_state(level_lines[i], false, false, false);
     }
-    set_line_visual_state(tutorial_line, false, false, false);
-    set_mode_switch_visual_state(false, false, false, false);
+    set_mode_switch_visual_state(false, false, false, false, false, false, false);
     set_line_visual_state(settings_line, false, false, false);
   }
 
@@ -1534,12 +1557,6 @@ struct MenuController : public dynamic::DynamicObject {
     if (!pending_control_remap) return;
     pending_control_remap.reset();
     set_settings_hint("Remap cancelled");
-  }
-
-  std::optional<levels::GameMode> mode_switch_mode_at_point(const glm::vec2& point) const {
-    if (point_hits_line(mode_line, point)) return levels::GameMode::Collector;
-    if (point_hits_line(mode_recipe_line, point)) return levels::GameMode::Recipe;
-    return std::nullopt;
   }
 
   void choose_mode(levels::GameMode new_mode) {
@@ -1590,9 +1607,20 @@ struct MenuController : public dynamic::DynamicObject {
     selected_gameover_index = static_cast<size_t>(next);
   }
 
-  void toggle_mode() {
-    choose_mode(levels::game_mode() == levels::GameMode::Collector ? levels::GameMode::Recipe
-                                                                    : levels::GameMode::Collector);
+  bool is_option_row_slot(size_t slot) const {
+    return slot == kCollectorMainSlot || slot == kRecipeMainSlot ||
+           slot == kTutorialMainSlot;
+  }
+
+  void move_option_row_selection(int direction) {
+    if (!selected_main_slot || !is_option_row_slot(*selected_main_slot)) return;
+    const int count = 3;
+    int next = static_cast<int>(*selected_main_slot) + (direction > 0 ? 1 : -1);
+    while (next < 0) {
+      next += count;
+    }
+    next %= count;
+    selected_main_slot = static_cast<size_t>(next);
   }
 
   void toggle_mute(size_t current_levels) {
@@ -1622,16 +1650,20 @@ struct MenuController : public dynamic::DynamicObject {
   }
 
   void handle_selected_main_action(size_t slot, size_t current_levels) {
-    if (slot == kModeMainSlot) {
-      toggle_mode();
+    if (slot == kCollectorMainSlot) {
+      choose_mode(levels::GameMode::Collector);
       return;
     }
-    if (slot == kSettingsMainSlot) {
-      enter_settings_mode();
+    if (slot == kRecipeMainSlot) {
+      choose_mode(levels::GameMode::Recipe);
       return;
     }
     if (slot == kTutorialMainSlot) {
       enter_tutorial_objective_mode();
+      return;
+    }
+    if (slot == kSettingsMainSlot) {
+      enter_settings_mode();
       return;
     }
     const auto level_index = main_slot_level_index(slot, current_levels);
@@ -1654,18 +1686,18 @@ struct MenuController : public dynamic::DynamicObject {
       const bool dimmed = !selected && has_selection;
       set_line_visual_state(level_lines[i], selected, hovered, dimmed, locked);
     }
+    const bool collector_selected =
+        selected_main_slot && *selected_main_slot == kCollectorMainSlot;
+    const bool recipe_selected = selected_main_slot && *selected_main_slot == kRecipeMainSlot;
     const bool tutorial_selected = selected_main_slot && *selected_main_slot == kTutorialMainSlot;
+    const bool collector_hovered = hovered_slot && *hovered_slot == kCollectorMainSlot;
+    const bool recipe_hovered = hovered_slot && *hovered_slot == kRecipeMainSlot;
     const bool tutorial_hovered = hovered_slot && *hovered_slot == kTutorialMainSlot;
-    set_line_visual_state(tutorial_line, tutorial_selected, tutorial_hovered,
-                          !tutorial_selected && has_selection);
-    const bool mode_selected = selected_main_slot && *selected_main_slot == kModeMainSlot;
-    const bool mode_hovered = hovered_slot && *hovered_slot == kModeMainSlot;
-    const bool collector_hovered =
-        mode_hovered && last_pointer && point_hits_line(mode_line, *last_pointer);
-    const bool recipe_hovered =
-        mode_hovered && last_pointer && point_hits_line(mode_recipe_line, *last_pointer);
-    set_mode_switch_visual_state(mode_selected, collector_hovered, recipe_hovered,
-                                 !mode_selected && has_selection);
+    const bool row_selected = collector_selected || recipe_selected || tutorial_selected;
+    const bool row_dimmed = !row_selected && has_selection;
+    set_mode_switch_visual_state(collector_selected, recipe_selected, tutorial_selected,
+                                 collector_hovered, recipe_hovered, tutorial_hovered,
+                                 row_dimmed);
     const bool settings_selected =
         selected_main_slot && *selected_main_slot == kSettingsMainSlot;
     const bool settings_hovered = hovered_slot && *hovered_slot == kSettingsMainSlot;
@@ -1709,8 +1741,7 @@ struct MenuController : public dynamic::DynamicObject {
     for (size_t i = 0; i < kMaxLevelLines; ++i) {
       set_line_visual_state(level_lines[i], false, false, false);
     }
-    set_line_visual_state(tutorial_line, false, false, false);
-    set_mode_switch_visual_state(false, false, false, false);
+    set_mode_switch_visual_state(false, false, false, false, false, false, false);
     set_line_visual_state(settings_line, false, false, false);
     set_line_visual_state(audio_line, false, false, false);
     for (auto& line : settings_control_lines) {
@@ -1732,8 +1763,7 @@ struct MenuController : public dynamic::DynamicObject {
       for (size_t i = 0; i < kMaxLevelLines; ++i) {
         set_line_visual_state(level_lines[i], false, false, false);
       }
-      set_line_visual_state(tutorial_line, false, false, false);
-      set_mode_switch_visual_state(false, false, false, false);
+      set_mode_switch_visual_state(false, false, false, false, false, false, false);
       set_line_visual_state(settings_line, false, false, false);
       set_line_visual_state(audio_line, false, false, false);
       for (auto& line : settings_control_lines) {
@@ -1981,14 +2011,16 @@ struct MenuController : public dynamic::DynamicObject {
           update_hover_state(current_levels);
           continue;
         }
-        if (selected_main_slot && *selected_main_slot == kModeMainSlot &&
+        if (selected_main_slot && is_option_row_slot(*selected_main_slot) &&
             is_arrow_left_key(key)) {
-          choose_mode(levels::GameMode::Collector);
+          move_option_row_selection(-1);
+          update_hover_state(current_levels);
           continue;
         }
-        if (selected_main_slot && *selected_main_slot == kModeMainSlot &&
+        if (selected_main_slot && is_option_row_slot(*selected_main_slot) &&
             is_arrow_right_key(key)) {
-          choose_mode(levels::GameMode::Recipe);
+          move_option_row_selection(1);
+          update_hover_state(current_levels);
           continue;
         }
         if (is_confirm_key(key) && selected_main_slot) {
@@ -2003,12 +2035,6 @@ struct MenuController : public dynamic::DynamicObject {
         auto slot = main_slot_at_point(point, current_levels);
         if (slot && is_main_slot_selectable(*slot, current_levels)) {
           selected_main_slot = *slot;
-          if (*slot == kModeMainSlot) {
-            if (auto mode = mode_switch_mode_at_point(point)) {
-              choose_mode(*mode);
-              return;
-            }
-          }
           handle_selected_main_action(*slot, current_levels);
           return;
         }
