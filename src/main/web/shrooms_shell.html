@@ -217,24 +217,28 @@
 
       main {
         align-items: start;
-        padding: 8px 0 10px;
+        padding: 8px 0 calc(10px + env(safe-area-inset-bottom, 0px));
       }
 
       #mobile-controls {
+        --mobile-control-pad-y: clamp(10px, 1.8dvh, 16px);
+        --mobile-control-pad-x: clamp(8px, 2.6vw, 14px);
+        --mobile-control-gap: clamp(8px, 1.2dvh, 14px);
         width: 100vw;
         max-width: none;
-        gap: 10px;
-        padding: 6px 10px 12px;
+        gap: var(--mobile-control-gap);
+        padding: 6px 10px calc(12px + env(safe-area-inset-bottom, 0px));
       }
 
       .action-button {
-        padding: 12px 8px;
-        min-height: 68px;
-        font-size: clamp(1.35rem, 6.4vw, 1.9rem);
+        min-height: clamp(64px, 12dvh, 108px);
+        padding: var(--mobile-control-pad-y) var(--mobile-control-pad-x);
+        font-size: clamp(1.35rem, 6.4vw, 2.1rem);
       }
 
       .controls-legend {
-        font-size: clamp(0.78rem, 3.2vw, 0.92rem);
+        gap: clamp(6px, 0.8dvh, 10px) clamp(10px, 2.2vw, 14px);
+        font-size: clamp(0.78rem, 2.2dvh, 0.98rem);
       }
 
     }
