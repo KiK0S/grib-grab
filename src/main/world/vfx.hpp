@@ -188,7 +188,7 @@ struct CatchConsumeVanish : public dynamic::DynamicObject {
     const float t = duration > 0.0f ? clamp01(elapsed / duration) : 1.0f;
 
     const float follow_t = ease_out(t);
-    const float consume_t = ease_out(clamp01(t / shrink_window));
+    const float consume_t = ease_in(t);
     const float consumed_x = std::isfinite(target_center.x) ? target_center.x : start_center.x;
     const float consumed_y = std::isfinite(target_center.y) ? target_center.y : start_center.y;
     const float wobble = std::sin(phase + t * wobble_cycles * 6.28318530718f) * base_size.x *
@@ -206,7 +206,7 @@ struct CatchConsumeVanish : public dynamic::DynamicObject {
     transform->pos = center - scaled_size * 0.5f;
 
     if (auto* tint = entity->get<color::OneColor>()) {
-      tint->color.w = 1.0f - ease_out(t);
+      tint->color.w = 1.0f - consume_t;
     }
 
     if (elapsed >= duration) {
@@ -220,11 +220,10 @@ struct CatchConsumeVanish : public dynamic::DynamicObject {
       std::numeric_limits<float>::quiet_NaN(),
       std::numeric_limits<float>::quiet_NaN(),
   };
-  float duration = 0.16f;
+  float duration = 0.32f;
   float phase = static_cast<float>(rnd::get_double(0.0, 6.28318530718));
   float wobble_ratio = 0.03f;
   float wobble_cycles = 1.2f;
-  float shrink_window = 0.55f;
   float min_scale = 0.04f;
   float elapsed = 0.0f;
 };
