@@ -51,6 +51,16 @@ inline color::OneColor* player_color = nullptr;
 inline bool player_movement_locked = false;
 inline float blocked_movement_flash_timer = 0.0f;
 inline constexpr float kBlockedMovementFlashDuration = 0.22f;
+inline constexpr float kCatchDissolveVerticalRatio = 0.15f;
+
+inline glm::vec2 player_catch_dissolve_center() {
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  if (!player_transform || player_size.x <= 0.0f || player_size.y <= 0.0f) {
+    return glm::vec2{nan, nan};
+  }
+  return player_transform->pos +
+         glm::vec2{player_size.x * 0.5f, player_size.y * kCatchDissolveVerticalRatio};
+}
 
 struct PlayerVibe : public dynamic::DynamicObject {
   PlayerVibe() : dynamic::DynamicObject() {}
@@ -493,7 +503,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
 
     const float nan = std::numeric_limits<float>::quiet_NaN();
     glm::vec2 catch_center{nan, nan};
-    const glm::vec2 center = player_center();
+    const glm::vec2 center = player_catch_dissolve_center();
     if (center.x == center.x && center.y == center.y) {
       catch_center = center;
       if (carried_transform) {
@@ -1123,11 +1133,7 @@ inline collision::TriggerObject* make_player_trigger() {
         if (entity->get<CarriedMarker>()) return;
         auto* sprite = entity->get<render_system::SpriteRenderable>();
         const std::string type = sprite ? engine::resources::texture_name(sprite->texture_id) : "";
-        const float nan = std::numeric_limits<float>::quiet_NaN();
-        glm::vec2 catch_center{nan, nan};
-        if (player_transform) {
-          catch_center = player_transform->pos + player_size * 0.5f;
-        }
+        glm::vec2 catch_center = player_catch_dissolve_center();
         levels::on_mushroom_caught(type, entity, catch_center, false);
       });
 }
