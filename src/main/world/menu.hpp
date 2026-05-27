@@ -53,6 +53,7 @@ constexpr float kModeSwitchCenterY = 0.55f;
 constexpr size_t kLeaderboardLines = static_cast<size_t>(leaderboard::kMaxEntries);
 constexpr size_t kNameMaxLength = 12;
 constexpr const char* kDefaultMenuBackgroundTexture = "background";
+constexpr float kMenuBackgroundScale = 0.8f;
 constexpr float kMenuLineIconWidthPx = 44.0f;
 constexpr float kMenuLineIconGapPx = 8.0f;
 constexpr int kKeyArrowUpDom = 38;
@@ -254,7 +255,7 @@ inline std::string current_date_ymd() {
 
 inline std::string build_share_text(int score) {
   constexpr const char* kMushroomEmoji = "\xF0\x9F\x8D\x84";
-  return std::string(kMushroomEmoji) + " grib grab Infinite Score: " + std::to_string(score) + " " +
+  return std::string(kMushroomEmoji) + " Grib Grab Infinite Score: " + std::to_string(score) + " " +
          kMushroomEmoji + "\nPlay: https://kik0s.github.io/grib-grab\nDate: " + current_date_ymd();
 }
 
@@ -285,7 +286,7 @@ inline void apply_menu_background(const std::string& texture_name, bool level_la
     size = shrooms::texture_sizing::from_width_px(resolved, view_width);
     pos = glm::vec2{0.0f, view_height - size.y};
   } else {
-    const float side = std::min(view_width, view_height);
+    const float side = std::min(view_width, view_height) * kMenuBackgroundScale;
     size = glm::vec2{side, side};
     pos = glm::vec2{(view_width - side) * 0.5f, (view_height - side) * 0.5f};
   }

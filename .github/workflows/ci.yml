@@ -36,6 +36,8 @@ jobs:
           cp build-web/shrooms.html site/index.html
           cp build-web/shrooms.js site/
           cp build-web/shrooms.wasm site/
+          cp build-web/shrooms_sw.js site/
+          sed -i "s/__SHROOMS_BUILD_VERSION__/${GITHUB_SHA}/g" site/shrooms_sw.js
           if [ -f build-web/shrooms.data ]; then cp build-web/shrooms.data site/; fi
           if [ -d build-web/assets ]; then
             mkdir -p site/assets

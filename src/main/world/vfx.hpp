@@ -43,6 +43,13 @@ inline float ease_in(float t) {
   return t * t;
 }
 
+inline void resize_sprite_quad(render_system::SpriteRenderable* sprite, const glm::vec2& size) {
+  if (!sprite) return;
+  sprite->size = size;
+  sprite->geometry = engine::geometry::make_quad(size.x, size.y);
+  sprite->uploaded = false;
+}
+
 struct BurstConfig {
   std::string texture;
   float lifetime = 0.35f;
@@ -181,7 +188,7 @@ struct CatchConsumeVanish : public dynamic::DynamicObject {
     const float t = duration > 0.0f ? clamp01(elapsed / duration) : 1.0f;
 
     const float follow_t = ease_out(t);
-    const float consume_t = ease_in(t);
+    const float consume_t = ease_out(clamp01(t / shrink_window));
     const float consumed_x = std::isfinite(target_center.x) ? target_center.x : start_center.x;
     const float consumed_y = std::isfinite(target_center.y) ? target_center.y : start_center.y;
     const float wobble = std::sin(phase + t * wobble_cycles * 6.28318530718f) * base_size.x *
@@ -195,11 +202,11 @@ struct CatchConsumeVanish : public dynamic::DynamicObject {
     const float scale = std::max(min_scale, lerp(1.0f, min_scale, consume_t));
     const glm::vec2 scaled_size = base_size * scale;
 
-    sprite->size = scaled_size;
+    resize_sprite_quad(sprite, scaled_size);
     transform->pos = center - scaled_size * 0.5f;
 
     if (auto* tint = entity->get<color::OneColor>()) {
-      tint->color.w = 1.0f - consume_t;
+      tint->color.w = 1.0f - ease_out(t);
     }
 
     if (elapsed >= duration) {
@@ -213,11 +220,12 @@ struct CatchConsumeVanish : public dynamic::DynamicObject {
       std::numeric_limits<float>::quiet_NaN(),
       std::numeric_limits<float>::quiet_NaN(),
   };
-  float duration = 0.45f;
+  float duration = 0.16f;
   float phase = static_cast<float>(rnd::get_double(0.0, 6.28318530718));
-  float wobble_ratio = 0.09f;
-  float wobble_cycles = 2.6f;
-  float min_scale = 0.3f;
+  float wobble_ratio = 0.03f;
+  float wobble_cycles = 1.2f;
+  float shrink_window = 0.55f;
+  float min_scale = 0.04f;
   float elapsed = 0.0f;
 };
 

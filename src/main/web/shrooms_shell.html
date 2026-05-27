@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no">
-  <title>grib grab</title>
+  <title>Grib Grab</title>
   <link rel="icon" type="image/svg+xml">
   <style>
     * {
@@ -309,6 +309,19 @@
     }
 
     markStartup("shell-script-start");
+
+    function registerServiceWorker() {
+      if (!("serviceWorker" in navigator)) {
+        return;
+      }
+      navigator.serviceWorker.register("./shrooms_sw.js", { updateViaCache: "none" })
+          .then(() => {
+            console.debug("[startup] service worker registered");
+          })
+          .catch((err) => {
+            console.warn("Service worker registration failed:", err);
+          });
+    }
 
     const KEY_A = 65;
     const KEY_D = 68;
@@ -1199,6 +1212,7 @@
     };
 
     Module.setStatus("Downloading...");
+    registerServiceWorker();
     drawGameFontTitle();
     installEngineTextInputDomBridge();
     syncPageActive();
