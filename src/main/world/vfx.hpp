@@ -196,7 +196,7 @@ struct CatchConsumeVanish : public dynamic::DynamicObject {
     const float y_jitter =
         std::sin(phase * 1.73f + t * 18.0f) * base_size.y * 0.03f * (1.0f - follow_t);
     const glm::vec2 center{
-        lerp(start_center.x, consumed_x, follow_t) + wobble,
+        consumed_x + wobble,
         lerp(start_center.y, consumed_y, follow_t) + y_jitter,
     };
     const float scale = std::max(min_scale, lerp(1.0f, min_scale, consume_t));
