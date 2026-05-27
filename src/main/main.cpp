@@ -82,7 +82,7 @@ int main() {
   engine::PlatformConfig config{};
   config.width = view_w;
   config.height = view_h;
-  config.title = "grib grab";
+  config.title = "Grib Grab";
   config.renderer = engine::RendererKind::WebGL;
 
 #ifdef __EMSCRIPTEN__

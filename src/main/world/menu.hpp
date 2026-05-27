@@ -255,7 +255,7 @@ inline std::string current_date_ymd() {
 
 inline std::string build_share_text(int score) {
   constexpr const char* kMushroomEmoji = "\xF0\x9F\x8D\x84";
-  return std::string(kMushroomEmoji) + " grib grab Infinite Score: " + std::to_string(score) + " " +
+  return std::string(kMushroomEmoji) + " Grib Grab Infinite Score: " + std::to_string(score) + " " +
          kMushroomEmoji + "\nPlay: https://kik0s.github.io/grib-grab\nDate: " + current_date_ymd();
 }
 
