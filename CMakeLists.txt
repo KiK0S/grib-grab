@@ -79,6 +79,7 @@ set(SHROOMS_ENGINE_ASSET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rd-party/engine/asset
 set(SHROOMS_PROJECT_ASSET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 set(SHROOMS_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rd-party/engine/shaders")
 set(SHROOMS_CUSTOM_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/main/custom_shaders")
+set(SHROOMS_SERVICE_WORKER "${CMAKE_CURRENT_SOURCE_DIR}/src/main/web/shrooms_sw.js")
 
 if(EXISTS "${SHROOMS_PROJECT_ASSET_DIR}")
   set(SHROOMS_ASSET_DIR "${SHROOMS_PROJECT_ASSET_DIR}")
@@ -219,6 +220,9 @@ if(ENGINE_PLATFORM STREQUAL "web")
     $<TARGET_FILE_DIR:shrooms>/assets
     COMMAND ${CMAKE_COMMAND} -E rm -rf
     $<TARGET_FILE_DIR:shrooms>/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${SHROOMS_SERVICE_WORKER}
+    $<TARGET_FILE_DIR:shrooms>/shrooms_sw.js
   )
 else()
   add_custom_command(TARGET shrooms POST_BUILD
@@ -248,6 +252,7 @@ if(ENGINE_PLATFORM STREQUAL "web")
   set_target_properties(shrooms PROPERTIES SUFFIX ".html")
   set_property(TARGET shrooms APPEND PROPERTY LINK_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main/web/shrooms_shell.html
+    ${SHROOMS_SERVICE_WORKER}
   )
   target_link_options(shrooms PRIVATE
     "-sWASM=1"

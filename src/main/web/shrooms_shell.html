@@ -306,6 +306,19 @@
 
     markStartup("shell-script-start");
 
+    function registerServiceWorker() {
+      if (!("serviceWorker" in navigator)) {
+        return;
+      }
+      navigator.serviceWorker.register("./shrooms_sw.js", { updateViaCache: "none" })
+          .then(() => {
+            console.debug("[startup] service worker registered");
+          })
+          .catch((err) => {
+            console.warn("Service worker registration failed:", err);
+          });
+    }
+
     const KEY_A = 65;
     const KEY_D = 68;
     const KEY_W = 87;
@@ -1195,6 +1208,7 @@
     };
 
     Module.setStatus("Downloading...");
+    registerServiceWorker();
     drawGameFontTitle();
     installEngineTextInputDomBridge();
     syncPageActive();
