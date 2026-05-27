@@ -1173,7 +1173,8 @@ inline void on_mushroom_caught(
     const std::string& type, ecs::Entity* entity,
     glm::vec2 player_center = glm::vec2{std::numeric_limits<float>::quiet_NaN(),
                                         std::numeric_limits<float>::quiet_NaN()},
-    bool from_familiar = false) {
+    bool from_familiar = false,
+    const transform::NoRotationTransform* catch_x_anchor = nullptr) {
   if (!entity || entity->is_pending_deletion()) return;
   if (vfx::is_mushroom_vfx_locked(entity)) return;
   if (tutorial_catch_hook) {
@@ -1181,7 +1182,7 @@ inline void on_mushroom_caught(
   }
   shrooms::audio::play_mushroom_catch();
   auto* level = current_level();
-  vfx::spawn_catch_effect(entity, player_center);
+  vfx::spawn_catch_effect(entity, player_center, catch_x_anchor);
   if (!level) return;
   const glm::vec2 score_anchor = score_anchor_for_entity(entity);
   const bool score_enabled = !tutorial_mode;

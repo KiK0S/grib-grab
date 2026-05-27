@@ -513,7 +513,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
 
     auto* sprite = carried->get<render_system::SpriteRenderable>();
     const std::string type = sprite ? engine::resources::texture_name(sprite->texture_id) : "";
-    levels::on_mushroom_caught(type, carried, catch_center, true);
+    levels::on_mushroom_caught(type, carried, catch_center, true, player_transform);
     clear_carried(false);
     begin_return();
   }
@@ -1134,7 +1134,7 @@ inline collision::TriggerObject* make_player_trigger() {
         auto* sprite = entity->get<render_system::SpriteRenderable>();
         const std::string type = sprite ? engine::resources::texture_name(sprite->texture_id) : "";
         glm::vec2 catch_center = player_catch_dissolve_center();
-        levels::on_mushroom_caught(type, entity, catch_center, false);
+        levels::on_mushroom_caught(type, entity, catch_center, false, player_transform);
       });
 }
 
