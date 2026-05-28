@@ -594,7 +594,7 @@ inline void spawn_trap_demo_mushrooms() {
   player::set_movement_locked(true);
   hide_marker();
   update_line(hint_text, hint_transform,
-              "Movement is locked. Let the three bats collect everything.",
+              "Wait for bats to do the job",
               hint_font_px(), kHintCenterNorm);
   stage_entity_a = levels::spawn_mushroom_now(
       good_mushroom_type, glm::vec2{trap_familiar_centers_px[0].x, view_height() * 0.12f});
@@ -642,7 +642,7 @@ inline void spawn_pair_practice_pair() {
   ++pair_spawn_index;
   show_pair_drop_markers();
   update_line(hint_text, hint_transform,
-              "Use bats and movement to collect three far-apart pairs: " +
+              "Collect mushroom pairs: " +
                   std::to_string(pair_practice_pairs_completed) + "/" +
                   std::to_string(kPracticeTarget) + ".",
               hint_font_px(), kHintCenterNorm);
@@ -693,7 +693,7 @@ inline void spawn_shoot_practice_target() {
   stage_entity_a = spawn_shoot_mukhomor_target(center);
   ++shoot_spawn_index;
   update_line(hint_text, hint_transform,
-              "Shoot three mukhomors with W: " + std::to_string(shoot_practice_shots) +
+              "Shoot mukhomors with W: " + std::to_string(shoot_practice_shots) +
                   "/" + std::to_string(kPracticeTarget) + ".",
               hint_font_px(), kHintCenterNorm);
 }
@@ -854,8 +854,7 @@ inline void set_stage(Stage next) {
       update_line(title_text, title_transform, "Tutorial: Bats", title_font_px(),
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
-                  "Send three bats with " + controls::bound_key_label(controls::Action::Trap) +
-                      " to the blue targets.",
+                  "Put bats to the blue targets using " + controls::bound_key_label(controls::Action::Trap) + ".",
                   hint_font_px(), kHintCenterNorm);
       enter_place_three_traps_stage();
       break;
@@ -864,7 +863,7 @@ inline void set_stage(Stage next) {
       update_line(title_text, title_transform, "Tutorial: Bat Demo", title_font_px(),
                   kTitleCenterNorm);
       update_line(hint_text, hint_transform,
-                  "Move to the border marker and wait while the bats collect everything.",
+                  "Move to the side.",
                   hint_font_px(), kHintCenterNorm);
       enter_trap_collect_demo_stage();
       break;
@@ -908,12 +907,8 @@ inline void set_stage(Stage next) {
       clear_stage_entities(false);
       hide_tutorial_lives();
       hide_tutorial_recipe_board();
+      clear_tutorial_text();
       clear_recipe_preview();
-      update_line(title_text, title_transform, "Tutorial Complete", title_font_px(),
-                  kTitleCenterNorm);
-      update_line(hint_text, hint_transform,
-                  "Returning to the menu with Collector selected.", hint_font_px(),
-                  kHintCenterNorm);
       levels::finish_tutorial(true);
       break;
     }
