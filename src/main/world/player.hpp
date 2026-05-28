@@ -540,10 +540,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     return_floor_x = current_center().x;
     return_hold_timer = std::max(0.0f, delay);
     if (!flight_heading_valid) {
-      const glm::vec2 to_target = return_target() - current_center();
-      if (glm::length(to_target) > 0.0001f) {
-        set_flight_heading(direction_angle(to_target));
-      }
+      set_flight_heading(return_desired_heading(current_center()));
     }
     update_visual_state();
   }
@@ -647,17 +644,39 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     }
 
     glm::vec2 center = current_center();
+    const float step = return_speed * dt;
+
+    if (return_mode == FamiliarReturnMode::DownAtCurrentX) {
+      const glm::vec2 floor_target = floor_center_for_x(center.x);
+      if (center.y >= floor_target.y - return_arrival_radius_px) {
+        begin_sink(floor_target);
+        return;
+      }
+
+      steer_flight_heading_toward(kDownHeadingRad, dt, return_turn_speed);
+      glm::vec2 next_center = center + heading_vector() * step;
+      const glm::vec2 next_floor_target = floor_center_for_x(next_center.x);
+      if (next_center.y >= next_floor_target.y - return_arrival_radius_px) {
+        next_center.y = std::min(next_center.y, next_floor_target.y);
+        set_center(next_center);
+        begin_sink(next_floor_target);
+        return;
+      }
+      set_center(next_center);
+      apply_sprite_heading();
+      return;
+    }
+
     const glm::vec2 target = return_target();
     const glm::vec2 to_target = target - center;
     const float dist = glm::length(to_target);
-    const float step = return_speed * dt;
     if (dist <= step + 1.0f || dist <= return_arrival_radius_px) {
       set_center(target);
       begin_sink(target);
       return;
     }
 
-    steer_flight_heading_toward(direction_angle(to_target), dt, return_turn_speed);
+    steer_flight_heading_toward(return_desired_heading(center), dt, return_turn_speed);
     const glm::vec2 forward = heading_vector();
     const glm::vec2 next_center = center + forward * step;
     const float next_dist = glm::length(target - next_center);
@@ -749,6 +768,18 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     return floor_center_for_x(player_center().x);
   }
 
+  float return_desired_heading(const glm::vec2& center) const {
+    if (return_mode == FamiliarReturnMode::DownAtCurrentX) {
+      return kDownHeadingRad;
+    }
+
+    const glm::vec2 to_player = player_center() - center;
+    if (glm::length(to_player) > return_arrival_radius_px) {
+      return direction_angle(to_player);
+    }
+    return kDownHeadingRad;
+  }
+
   float smooth01(float value) const {
     const float t = std::clamp(value, 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
@@ -829,6 +860,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   engine::TextureId normal_texture_id = engine::kInvalidTextureId;
   engine::TextureId strike_texture_id = engine::kInvalidTextureId;
   static constexpr float kUpHeadingRad = -1.57079632679f;
+  static constexpr float kDownHeadingRad = 1.57079632679f;
   float carry_speed = 820.0f;
   float strike_up_speed = 980.0f;
   float strike_top_y = -50.0f;
