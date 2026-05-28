@@ -944,13 +944,17 @@ inline FamiliarLogic* find_idle_familiar_for_strike() {
 inline void deploy_familiar() {
   if (auto* logic = find_idle_familiar()) {
     logic->deploy();
+    return;
   }
+  flash_blocked_movement();
 }
 
 inline void launch_strike_familiar() {
   if (auto* logic = find_idle_familiar_for_strike()) {
     logic->launch_strike();
+    return;
   }
+  flash_blocked_movement();
 }
 
 inline collision::TriggerObject* make_familiar_trigger(FamiliarLogic* logic) {
