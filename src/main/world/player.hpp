@@ -155,6 +155,11 @@ enum class FamiliarState {
   Cooldown,
 };
 
+enum class FamiliarReturnMode {
+  DownAtCurrentX,
+  DownToPlayer,
+};
+
 inline void update_bat_hud();
 
 inline engine::ShaderId familiar_sleep_shader_id() {
@@ -340,7 +345,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
 
     if (carried && carried->is_pending_deletion()) {
       clear_carried(false);
-      begin_return();
+      begin_return(0.0f, FamiliarReturnMode::DownToPlayer);
     }
 
     switch (state) {
@@ -367,7 +372,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
         center.y -= strike_up_speed * dt;
         set_center(center);
         if (center.y <= strike_top_y) {
-          begin_return(strike_return_delay);
+          begin_return(strike_return_delay, FamiliarReturnMode::DownAtCurrentX);
         }
         break;
       }
@@ -429,7 +434,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     if (vfx::is_mushroom_vfx_locked(mushroom)) return;
     if (!can_strike_hit()) return;
     levels::on_mushroom_sorted(mushroom);
-    begin_return(strike_return_delay);
+    begin_return(strike_return_delay, FamiliarReturnMode::DownAtCurrentX);
   }
 
   void deploy() {
@@ -469,6 +474,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     return_hold_timer = 0.0f;
     cooldown_timer = 0.0f;
     trail_timer = 0.0f;
+    flight_heading_valid = false;
     if (!transform) {
       transform = entity ? entity->get<transform::NoRotationTransform>() : nullptr;
     }
@@ -497,7 +503,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   void deliver() {
     if (!carried || carried->is_pending_deletion()) {
       clear_carried(false);
-      begin_return();
+      begin_return(0.0f, FamiliarReturnMode::DownToPlayer);
       return;
     }
 
@@ -515,20 +521,30 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     const std::string type = sprite ? engine::resources::texture_name(sprite->texture_id) : "";
     levels::on_mushroom_caught(type, carried, catch_center, true, player_transform);
     clear_carried(false);
-    begin_return();
+    begin_return(0.0f, FamiliarReturnMode::DownToPlayer);
   }
 
-  void begin_return(float delay = 0.0f) {
+  void begin_return(float delay = 0.0f,
+                    FamiliarReturnMode mode = FamiliarReturnMode::DownToPlayer) {
     if (sprite) {
-      if (normal_texture_id != engine::kInvalidTextureId) {
+      if (mode != FamiliarReturnMode::DownAtCurrentX &&
+          normal_texture_id != engine::kInvalidTextureId) {
         sprite->texture_id = normal_texture_id;
       }
-      sprite->reset_pose();
+      sprite->model_scale = 1.0f;
       sprite->grayscale = false;
     }
     if (hidden) hidden->show();
     state = FamiliarState::Returning;
+    return_mode = mode;
+    return_floor_x = current_center().x;
     return_hold_timer = std::max(0.0f, delay);
+    if (!flight_heading_valid) {
+      const glm::vec2 to_target = return_target() - current_center();
+      if (glm::length(to_target) > 0.0001f) {
+        set_flight_heading(direction_angle(to_target));
+      }
+    }
     update_visual_state();
   }
 
@@ -571,6 +587,10 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     emerge_target = target;
     emerge_start = floor_center_for_x(target.x);
     set_center(emerge_start);
+    const glm::vec2 to_target = emerge_target - emerge_start;
+    if (glm::length(to_target) > 0.0001f) {
+      set_flight_heading(direction_angle(to_target));
+    }
     if (hidden) hidden->show();
     if (sprite) {
       if (normal_texture_id != engine::kInvalidTextureId) {
@@ -597,6 +617,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     set_center(emerge_target);
     if (state == FamiliarState::EmergingTrap) {
       state = FamiliarState::Planted;
+      flight_heading_valid = false;
     } else {
       begin_strike_dash();
     }
@@ -607,6 +628,9 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     const glm::vec2 target = player_center() + carry_offset;
     const glm::vec2 to_player = target - center;
     const float dist = glm::length(to_player);
+    if (dist > 0.0001f) {
+      set_flight_heading(direction_angle(to_player));
+    }
     if (dist <= carry_speed * dt + 1.0f) {
       set_center(target);
       deliver();
@@ -623,30 +647,43 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     }
 
     glm::vec2 center = current_center();
-    const glm::vec2 target = action_center();
-    const glm::vec2 to_player = target - center;
-    const float dist = glm::length(to_player);
-    if (dist > return_speed * dt + 1.0f && dist > 0.0001f) {
-      center += glm::normalize(to_player) * return_speed * dt;
-      set_center(center);
+    const glm::vec2 target = return_target();
+    const glm::vec2 to_target = target - center;
+    const float dist = glm::length(to_target);
+    const float step = return_speed * dt;
+    if (dist <= step + 1.0f || dist <= return_arrival_radius_px) {
+      set_center(target);
+      begin_sink(target);
       return;
     }
 
-    set_center(target);
-    begin_sink();
+    steer_flight_heading_toward(direction_angle(to_target), dt, return_turn_speed);
+    const glm::vec2 forward = heading_vector();
+    const glm::vec2 next_center = center + forward * step;
+    const float next_dist = glm::length(target - next_center);
+    if (next_dist <= return_arrival_radius_px ||
+        (next_dist > dist && dist <= step * 1.5f)) {
+      set_center(target);
+      begin_sink(target);
+      return;
+    }
+    set_center(next_center);
+    apply_sprite_heading();
   }
 
-  void begin_sink() {
+  void begin_sink(const glm::vec2& target) {
     shrooms::audio::play_familiar_return();
     state = FamiliarState::Sinking;
     transition_elapsed = 0.0f;
     sink_start = current_center();
-    sink_target = floor_center_for_x(player_center().x);
+    sink_target = target;
+    sink_start_rotation = sprite ? sprite->model_rotation_rad : 0.0f;
     if (sprite) {
-      if (normal_texture_id != engine::kInvalidTextureId) {
+      if (return_mode != FamiliarReturnMode::DownAtCurrentX &&
+          normal_texture_id != engine::kInvalidTextureId) {
         sprite->texture_id = normal_texture_id;
       }
-      sprite->reset_pose();
+      sprite->model_scale = 1.0f;
       sprite->grayscale = false;
     }
   }
@@ -657,7 +694,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     set_center(lerp(sink_start, sink_target, t));
     if (sprite) {
       sprite->model_scale = std::max(0.05f, 1.0f - 0.75f * t);
-      sprite->model_rotation_rad = 0.0f;
+      sprite->model_rotation_rad = lerp_angle(sink_start_rotation, 0.0f, t);
     }
     if (t < 1.0f) return;
 
@@ -677,6 +714,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
       sprite->reset_pose();
       sprite->grayscale = false;
     }
+    set_flight_heading(kUpHeadingRad);
     trail_timer = 0.0f;
     vfx::spawn_projectile_flash(current_center(), size);
   }
@@ -704,6 +742,13 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     return action_center();
   }
 
+  glm::vec2 return_target() const {
+    if (return_mode == FamiliarReturnMode::DownAtCurrentX) {
+      return floor_center_for_x(return_floor_x);
+    }
+    return floor_center_for_x(player_center().x);
+  }
+
   float smooth01(float value) const {
     const float t = std::clamp(value, 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
@@ -713,6 +758,50 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     return a + (b - a) * std::clamp(t, 0.0f, 1.0f);
   }
 
+  static float wrap_delta(float radians) {
+    return std::atan2(std::sin(radians), std::cos(radians));
+  }
+
+  static float direction_angle(const glm::vec2& direction) {
+    return std::atan2(direction.y, direction.x);
+  }
+
+  float lerp_angle(float from, float to, float t) const {
+    return from + wrap_delta(to - from) * std::clamp(t, 0.0f, 1.0f);
+  }
+
+  void set_flight_heading(float radians) {
+    flight_heading_rad = radians;
+    flight_heading_valid = true;
+    apply_sprite_heading();
+  }
+
+  void steer_flight_heading_toward(float target_heading, float dt, float angular_speed) {
+    if (!flight_heading_valid) {
+      set_flight_heading(target_heading);
+      return;
+    }
+    const float delta = wrap_delta(target_heading - flight_heading_rad);
+    const float max_turn = std::max(0.0f, angular_speed) * std::max(0.0f, dt);
+    if (std::abs(delta) <= max_turn) {
+      flight_heading_rad = target_heading;
+    } else {
+      flight_heading_rad += delta < 0.0f ? -max_turn : max_turn;
+    }
+    apply_sprite_heading();
+  }
+
+  glm::vec2 heading_vector() const {
+    if (!flight_heading_valid) return glm::vec2{0.0f, 1.0f};
+    return glm::vec2{std::cos(flight_heading_rad), std::sin(flight_heading_rad)};
+  }
+
+  void apply_sprite_heading() {
+    if (!sprite || !flight_heading_valid) return;
+    sprite->model_scale = 1.0f;
+    sprite->model_rotation_rad = flight_heading_rad - kUpHeadingRad;
+  }
+
   void update_visual_state() {
     const bool visible = state != FamiliarState::Ready && state != FamiliarState::Cooldown;
     if (hidden) hidden->set_visible(visible);
@@ -720,8 +809,14 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     const bool transition =
         state == FamiliarState::EmergingTrap || state == FamiliarState::EmergingStrike ||
         state == FamiliarState::Sinking;
-    sprite->use_idle_wobble(state != FamiliarState::StrikeAscend);
-    if (!transition) {
+    const bool flight_pose =
+        state == FamiliarState::Carry || state == FamiliarState::StrikeAscend ||
+        state == FamiliarState::Returning;
+    sprite->use_idle_wobble(state != FamiliarState::StrikeAscend &&
+                            state != FamiliarState::Returning);
+    if (flight_pose) {
+      apply_sprite_heading();
+    } else if (!transition) {
       sprite->reset_pose();
     }
     sprite->grayscale = false;
@@ -733,12 +828,15 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   glm::vec2 size{0.0f, 0.0f};
   engine::TextureId normal_texture_id = engine::kInvalidTextureId;
   engine::TextureId strike_texture_id = engine::kInvalidTextureId;
+  static constexpr float kUpHeadingRad = -1.57079632679f;
   float carry_speed = 820.0f;
   float strike_up_speed = 980.0f;
   float strike_top_y = -50.0f;
   float strike_lane_x = 0.0f;
   float strike_return_delay = 0.22f;
   float return_speed = 720.0f;
+  float return_turn_speed = 9.0f;
+  float return_arrival_radius_px = 8.0f;
   float return_delay = 1.0f;
   float return_hold_timer = 0.0f;
   float transition_elapsed = 0.0f;
@@ -753,6 +851,11 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   glm::vec2 emerge_target{0.0f, 0.0f};
   glm::vec2 sink_start{0.0f, 0.0f};
   glm::vec2 sink_target{0.0f, 0.0f};
+  float sink_start_rotation = 0.0f;
+  float flight_heading_rad = kUpHeadingRad;
+  bool flight_heading_valid = false;
+  FamiliarReturnMode return_mode = FamiliarReturnMode::DownToPlayer;
+  float return_floor_x = 0.0f;
   FamiliarState state = FamiliarState::Ready;
   ecs::Entity* carried = nullptr;
   transform::NoRotationTransform* carried_transform = nullptr;
