@@ -503,7 +503,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   void deliver() {
     if (!carried || carried->is_pending_deletion()) {
       clear_carried(false);
-      begin_return(0.0f, FamiliarReturnMode::DownToPlayer);
+      begin_return(0.0f, FamiliarReturnMode::DownAtCurrentX);
       return;
     }
 
@@ -521,7 +521,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     const std::string type = sprite ? engine::resources::texture_name(sprite->texture_id) : "";
     levels::on_mushroom_caught(type, carried, catch_center, true, player_transform);
     clear_carried(false);
-    begin_return(0.0f, FamiliarReturnMode::DownToPlayer);
+    begin_return(0.0f, FamiliarReturnMode::DownAtCurrentX);
   }
 
   void begin_return(float delay = 0.0f,
@@ -638,12 +638,17 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   }
 
   void update_returning(float dt) {
+    glm::vec2 center = current_center();
     if (return_hold_timer > 0.0f) {
       return_hold_timer = std::max(0.0f, return_hold_timer - dt);
+      align_return_heading(dt, center);
       return;
     }
 
-    glm::vec2 center = current_center();
+    if (!align_return_heading(dt, center)) {
+      return;
+    }
+
     const float step = return_speed * dt;
 
     if (return_mode == FamiliarReturnMode::DownAtCurrentX) {
@@ -780,6 +785,13 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     return kDownHeadingRad;
   }
 
+  bool align_return_heading(float dt, const glm::vec2& center) {
+    const float desired_heading = return_desired_heading(center);
+    steer_flight_heading_toward(desired_heading, dt, return_turn_speed);
+    return std::abs(wrap_delta(desired_heading - flight_heading_rad)) <=
+           return_alignment_angle_rad;
+  }
+
   float smooth01(float value) const {
     const float t = std::clamp(value, 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
@@ -868,6 +880,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   float strike_return_delay = 0.22f;
   float return_speed = 720.0f;
   float return_turn_speed = 9.0f;
+  float return_alignment_angle_rad = 0.14f;
   float return_arrival_radius_px = 8.0f;
   float return_delay = 1.0f;
   float return_hold_timer = 0.0f;
