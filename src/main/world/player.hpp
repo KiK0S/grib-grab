@@ -62,6 +62,15 @@ inline glm::vec2 player_catch_dissolve_center() {
          glm::vec2{player_size.x * 0.5f, player_size.y * kCatchDissolveVerticalRatio};
 }
 
+inline bool is_finite_point(const glm::vec2& point) {
+  return std::isfinite(point.x) && std::isfinite(point.y);
+}
+
+inline glm::vec2 player_pot_center_or(const glm::vec2& fallback) {
+  const glm::vec2 center = player_catch_dissolve_center();
+  return is_finite_point(center) ? center : fallback;
+}
+
 struct PlayerVibe : public dynamic::DynamicObject {
   PlayerVibe() : dynamic::DynamicObject() {}
   ~PlayerVibe() override { Component::component_count--; }
@@ -350,7 +359,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
 
     switch (state) {
       case FamiliarState::Ready: {
-        set_center(floor_center_for_x(player_center().x));
+        set_center(home_center());
         break;
       }
       case FamiliarState::EmergingTrap:
@@ -372,7 +381,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
         center.y -= strike_up_speed * dt;
         set_center(center);
         if (center.y <= strike_top_y) {
-          begin_return(strike_return_delay, FamiliarReturnMode::DownAtCurrentX);
+          begin_return(strike_return_delay, FamiliarReturnMode::DownToPlayer);
         }
         break;
       }
@@ -434,7 +443,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     if (vfx::is_mushroom_vfx_locked(mushroom)) return;
     if (!can_strike_hit()) return;
     levels::on_mushroom_sorted(mushroom);
-    begin_return(strike_return_delay, FamiliarReturnMode::DownAtCurrentX);
+    begin_return(strike_return_delay, FamiliarReturnMode::DownToPlayer);
   }
 
   void deploy() {
@@ -461,7 +470,6 @@ struct FamiliarLogic : public dynamic::DynamicObject {
       moving->translate = glm::vec2{0.0f, 0.0f};
     }
 
-    carry_offset = glm::vec2{0.0f, -player_size.y * 0.15f};
     state = FamiliarState::Carry;
     trail_timer = 0.0f;
     vfx::spawn_projectile_flash(current_center(), size);
@@ -486,7 +494,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
       sprite->grayscale = false;
     }
     if (hidden) hidden->hide();
-    set_center(floor_center_for_x(player_center().x));
+    set_center(home_center());
     update_bat_hud();
   }
 
@@ -503,14 +511,14 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   void deliver() {
     if (!carried || carried->is_pending_deletion()) {
       clear_carried(false);
-      begin_return(0.0f, FamiliarReturnMode::DownAtCurrentX);
+      begin_return(0.0f, FamiliarReturnMode::DownToPlayer);
       return;
     }
 
     const float nan = std::numeric_limits<float>::quiet_NaN();
     glm::vec2 catch_center{nan, nan};
     const glm::vec2 center = player_catch_dissolve_center();
-    if (center.x == center.x && center.y == center.y) {
+    if (is_finite_point(center)) {
       catch_center = center;
       if (carried_transform) {
         carried_transform->pos = shrooms::screen::center_to_top_left(center, carried_size);
@@ -521,7 +529,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     const std::string type = sprite ? engine::resources::texture_name(sprite->texture_id) : "";
     levels::on_mushroom_caught(type, carried, catch_center, true, player_transform);
     clear_carried(false);
-    begin_return(0.0f, FamiliarReturnMode::DownAtCurrentX);
+    begin_return(0.0f, FamiliarReturnMode::DownToPlayer);
   }
 
   void begin_return(float delay = 0.0f,
@@ -574,7 +582,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
       sprite->grayscale = false;
     }
     if (hidden) hidden->hide();
-    set_center(floor_center_for_x(player_center().x));
+    set_center(home_center());
     update_bat_hud();
   }
 
@@ -582,7 +590,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     state = emerge_state;
     transition_elapsed = 0.0f;
     emerge_target = target;
-    emerge_start = floor_center_for_x(target.x);
+    emerge_start = home_center();
     set_center(emerge_start);
     const glm::vec2 to_target = emerge_target - emerge_start;
     if (glm::length(to_target) > 0.0001f) {
@@ -593,7 +601,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
       if (normal_texture_id != engine::kInvalidTextureId) {
         sprite->texture_id = normal_texture_id;
       }
-      sprite->model_scale = 0.25f;
+      sprite->model_scale = sink_min_scale;
       sprite->model_rotation_rad = 0.0f;
       sprite->grayscale = false;
     }
@@ -606,7 +614,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     const float t = smooth01(emerge_duration > 0.0f ? transition_elapsed / emerge_duration : 1.0f);
     set_center(lerp(emerge_start, emerge_target, t));
     if (sprite) {
-      sprite->model_scale = 0.25f + 0.75f * t;
+      sprite->model_scale = sink_min_scale + (1.0f - sink_min_scale) * t;
       sprite->model_rotation_rad = 0.0f;
     }
     if (t < 1.0f) return;
@@ -622,7 +630,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
 
   void move_toward_player(float dt) {
     glm::vec2 center = current_center();
-    const glm::vec2 target = player_center() + carry_offset;
+    const glm::vec2 target = home_center();
     const glm::vec2 to_player = target - center;
     const float dist = glm::length(to_player);
     if (dist > 0.0001f) {
@@ -714,10 +722,13 @@ struct FamiliarLogic : public dynamic::DynamicObject {
 
   void update_sinking(float dt) {
     transition_elapsed += dt;
+    if (return_mode != FamiliarReturnMode::DownAtCurrentX) {
+      sink_target = home_center();
+    }
     const float t = smooth01(sink_duration > 0.0f ? transition_elapsed / sink_duration : 1.0f);
     set_center(lerp(sink_start, sink_target, t));
     if (sprite) {
-      sprite->model_scale = std::max(0.05f, 1.0f - 0.75f * t);
+      sprite->model_scale = std::max(sink_min_scale, 1.0f + (sink_min_scale - 1.0f) * t);
       sprite->model_rotation_rad = lerp_angle(sink_start_rotation, 0.0f, t);
     }
     if (t < 1.0f) return;
@@ -750,6 +761,10 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     return player_transform->pos + player_size * 0.5f;
   }
 
+  glm::vec2 home_center() const {
+    return player_pot_center_or(player_center());
+  }
+
   glm::vec2 action_center() const {
     return player_center() + glm::vec2{0.0f, -player_size.y * 0.65f};
   }
@@ -770,7 +785,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     if (return_mode == FamiliarReturnMode::DownAtCurrentX) {
       return floor_center_for_x(return_floor_x);
     }
-    return floor_center_for_x(player_center().x);
+    return home_center();
   }
 
   float return_desired_heading(const glm::vec2& center) const {
@@ -778,9 +793,9 @@ struct FamiliarLogic : public dynamic::DynamicObject {
       return kDownHeadingRad;
     }
 
-    const glm::vec2 to_player = player_center() - center;
-    if (glm::length(to_player) > return_arrival_radius_px) {
-      return direction_angle(to_player);
+    const glm::vec2 to_target = return_target() - center;
+    if (glm::length(to_target) > return_arrival_radius_px) {
+      return direction_angle(to_target);
     }
     return kDownHeadingRad;
   }
@@ -886,11 +901,11 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   float return_hold_timer = 0.0f;
   float transition_elapsed = 0.0f;
   float emerge_duration = 0.22f;
-  float sink_duration = 0.24f;
+  float sink_duration = 0.32f;
+  float sink_min_scale = 0.04f;
   float cooldown_timer = 0.0f;
   float trail_timer = 0.0f;
   float trail_period = 0.05f;
-  glm::vec2 carry_offset{0.0f, 0.0f};
   glm::vec2 planted_center{0.0f, 0.0f};
   glm::vec2 emerge_start{0.0f, 0.0f};
   glm::vec2 emerge_target{0.0f, 0.0f};
@@ -1038,12 +1053,7 @@ inline void init_familiars() {
     auto* transform = arena::create<transform::NoRotationTransform>();
     const glm::vec2 player_center =
         player_transform->pos + glm::vec2{player_size.x * 0.5f, player_size.y * 0.5f};
-    glm::vec2 spawn_center = player_center;
-    glm::vec2 floor_top_left{0.0f, 0.0f};
-    glm::vec2 floor_size{0.0f, 0.0f};
-    if (ambient_layers::resolve_bottom_sprite_bounds(floor_top_left, floor_size)) {
-      spawn_center = glm::vec2{player_center.x, floor_top_left.y + floor_size.y * 0.52f};
-    }
+    const glm::vec2 spawn_center = player_pot_center_or(player_center);
     transform->pos = shrooms::screen::center_to_top_left(spawn_center, familiar_size);
     entity->add(transform);
 
