@@ -1158,11 +1158,6 @@ struct TutorialController : public dynamic::DynamicObject {
           set_stage(Stage::TrapCollectDemo);
           return;
         }
-        update_line(hint_text, hint_transform,
-                    "Send three bats to the blue targets: " +
-                        std::to_string(trap_target_filled_count) + "/" +
-                        std::to_string(kTrapTargetCount) + ".",
-                    hint_font_px(), kHintCenterNorm);
         return;
       }
       return;
