@@ -653,16 +653,16 @@ struct FamiliarLogic : public dynamic::DynamicObject {
       return;
     }
 
-    if (!align_return_heading(dt, center)) {
-      return;
-    }
-
     const float step = return_speed * dt;
 
     if (return_mode == FamiliarReturnMode::DownAtCurrentX) {
       const glm::vec2 floor_target = floor_center_for_x(center.x);
       if (center.y >= floor_target.y - return_arrival_radius_px) {
         begin_sink(floor_target);
+        return;
+      }
+
+      if (!align_return_heading(dt, center)) {
         return;
       }
 
@@ -686,6 +686,10 @@ struct FamiliarLogic : public dynamic::DynamicObject {
     if (dist <= step + 1.0f || dist <= return_arrival_radius_px) {
       set_center(target);
       begin_sink(target);
+      return;
+    }
+
+    if (!align_return_heading(dt, center)) {
       return;
     }
 
@@ -896,7 +900,7 @@ struct FamiliarLogic : public dynamic::DynamicObject {
   float return_speed = 720.0f;
   float return_turn_speed = 9.0f;
   float return_alignment_angle_rad = 0.14f;
-  float return_arrival_radius_px = 8.0f;
+  float return_arrival_radius_px = 28.0f;
   float return_delay = 1.0f;
   float return_hold_timer = 0.0f;
   float transition_elapsed = 0.0f;
