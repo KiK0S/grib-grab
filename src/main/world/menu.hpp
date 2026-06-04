@@ -28,6 +28,7 @@
 #include "countdown.hpp"
 #include "level_intro.hpp"
 #include "leaderboard.hpp"
+#include "pixel_snap.hpp"
 #include "level_manager.hpp"
 #include "score_hud.hpp"
 #include "controls.hpp"
@@ -507,7 +508,7 @@ inline void update_text(TextLine& line, const std::string& value) {
 
   if (line.transform) {
     line.transform->pos =
-        content_origin + glm::vec2{text_x, -content_top};
+        shrooms::pixel_snap::point(content_origin + glm::vec2{text_x, -content_top});
   }
 
   if (has_icon && line.icon_transform) {
@@ -536,10 +537,10 @@ inline void update_text(TextLine& line, const std::string& value) {
       const float bottom_pad = std::max(6.0f, line.button_base_size.y * 0.10f);
       const float inner_h = std::max(1.0f, line.button_base_size.y - top_pad - bottom_pad);
       const float text_band_h = inner_h * 0.60f;
-      line.transform->pos = glm::vec2{
+      line.transform->pos = shrooms::pixel_snap::point(glm::vec2{
           line.button_base_pos.x + (line.button_base_size.x - text_size.x) * 0.5f,
           line.button_base_pos.y + top_pad + (text_band_h - text_size.y) * 0.5f,
-      };
+      });
     }
   }
   update_line_slider_geometry(line);
@@ -753,10 +754,11 @@ inline void set_line_fixed_button(TextLine& line,
   if (line.transform && line.text_object) {
     const auto layout =
         engine::text::layout_text(line.text_object->text, 0.0f, 0.0f, line.font_px);
-    line.transform->pos = top_left + glm::vec2{
-                                          (size.x - layout.width) * 0.5f,
-                                          (size.y - layout.height) * 0.5f,
-                                      };
+    line.transform->pos = shrooms::pixel_snap::point(
+        top_left + glm::vec2{
+                       (size.x - layout.width) * 0.5f,
+                       (size.y - layout.height) * 0.5f,
+                   });
   }
 }
 

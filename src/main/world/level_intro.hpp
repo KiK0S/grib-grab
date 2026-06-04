@@ -22,6 +22,7 @@
 #include "countdown.hpp"
 #include "score_hud.hpp"
 #include "scoreboard.hpp"
+#include "pixel_snap.hpp"
 #include "shrooms_screen.hpp"
 
 namespace level_intro {
@@ -95,7 +96,7 @@ inline void update_text_layout(text::TextObject* text_obj,
   const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, font_px);
   const glm::vec2 size{layout.width, layout.height};
   const glm::vec2 center = shrooms::screen::norm_to_pixels(center_norm);
-  transform->pos = center - size * 0.5f;
+  transform->pos = shrooms::pixel_snap::centered_top_left(center, size);
 }
 
 inline void set_text_visible(bool visible) {
