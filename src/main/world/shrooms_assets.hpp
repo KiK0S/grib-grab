@@ -70,13 +70,13 @@ inline void register_shrooms_svg_assets() {
   register_svg("bottom_1");
   register_svg("bottom_2");
 
-  register_svg("level_1_ezh");
-  register_svg("level_2_eli");
+  register_svg("level_1_eli");
+  register_svg("level_2_ezh");
   register_svg("level_3_izba");
   register_svg("level_4_lyaguha");
   register_svg("level_5_mol");
-  register_svg("level_6_tzar");
-  register_svg("level_7_yagoda");
+  register_svg("level_6_yagoda");
+  register_svg("level_7_tzar");
 
   register_svg("emoji_hedgehog");
   register_svg("emoji_tree");

@@ -398,7 +398,7 @@ inline void apply_level_background(const LevelDefinition& level) {
     if (!parsed_levels.empty()) {
       set_background_texture(parsed_levels.front().id);
     } else {
-      set_background_texture("level_1_ezh");
+      set_background_texture("level_1_eli");
     }
     return;
   }
@@ -1411,7 +1411,7 @@ inline void start_tutorial_mode() {
   if (!parsed_levels.empty()) {
     tutorial_level.id = parsed_levels.front().id;
   } else {
-    tutorial_level.id = "level_1_ezh";
+    tutorial_level.id = "level_1_eli";
   }
   tutorial_level.objective_rule = ObjectiveRule::CollectOnly;
   tutorial_level.objective_hint.clear();

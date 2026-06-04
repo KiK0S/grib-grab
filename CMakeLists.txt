@@ -155,13 +155,13 @@ set(SHROOMS_WEB_ASSET_FILES
   shrooms/heart.svg
   shrooms/icon.svg
   shrooms/in_game_pause.svg
-  shrooms/level_1_ezh.svg
-  shrooms/level_2_eli.svg
+  shrooms/level_1_eli.svg
+  shrooms/level_2_ezh.svg
   shrooms/level_3_izba.svg
   shrooms/level_4_lyaguha.svg
   shrooms/level_5_mol.svg
-  shrooms/level_6_tzar.svg
-  shrooms/level_7_yagoda.svg
+  shrooms/level_6_yagoda.svg
+  shrooms/level_7_tzar.svg
   shrooms/lisi4ka.svg
   shrooms/lisi4ka_small.svg
   shrooms/menu_face.svg
