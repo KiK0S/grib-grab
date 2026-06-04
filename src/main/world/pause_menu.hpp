@@ -28,6 +28,7 @@
 #include "level_intro.hpp"
 #include "score_hud.hpp"
 #include "menu.hpp"
+#include "pixel_snap.hpp"
 #include "player.hpp"
 #include "round_transition.hpp"
 #include "shrooms_screen.hpp"
@@ -445,15 +446,15 @@ inline void update_action_label(ActionLine& action, const std::string& label) {
     const float inner_h = std::max(1.0f, action.button_base_size.y - top_pad - bottom_pad);
     const float text_band_h = inner_h * 0.60f;
     const float text_y = action.button_base_pos.y + top_pad + (text_band_h - text_size.y) * 0.5f;
-    action.text_transform->pos = glm::vec2{
+    action.text_transform->pos = shrooms::pixel_snap::point(glm::vec2{
         action.button_base_pos.x + (action.button_base_size.x - text_size.x) * 0.5f,
         text_y,
-    };
+    });
   } else {
-    action.text_transform->pos = glm::vec2{
+    action.text_transform->pos = shrooms::pixel_snap::point(glm::vec2{
         action.button_base_pos.x + (action.button_base_size.x - text_size.x) * 0.5f,
         text_y_centered,
-    };
+    });
   }
   update_action_slider_geometry(action);
 }
@@ -489,7 +490,7 @@ inline ActionLine make_action_line(const std::string& label, const glm::vec2& ce
   const float font_px = action.font_px;
   const auto layout = engine::text::layout_text(label, 0.0f, 0.0f, font_px);
   const glm::vec2 text_size{layout.width, layout.height};
-  action.text_transform->pos = shrooms::screen::center_to_top_left(center, text_size);
+  action.text_transform->pos = shrooms::pixel_snap::centered_top_left(center, text_size);
   action.text_entity->add(action.text_transform);
   action.text_entity->add(arena::create<layers::ConstLayer>(config.text_layer + 1));
   action.text_object = arena::create<text::TextObject>(label, font_px);

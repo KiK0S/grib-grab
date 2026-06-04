@@ -24,6 +24,7 @@
 #include "engine/geometry_builder.h"
 
 #include "panel_occlusion_fx.hpp"
+#include "pixel_snap.hpp"
 #include "shrooms_screen.hpp"
 #include "shrooms_texture_sizing.hpp"
 
@@ -404,7 +405,8 @@ inline void update_score_layout() {
   score_text->font_size = config.score_font_px;
   const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, config.score_font_px);
   const glm::vec2 size{layout.width, layout.height};
-  score_text_transform->pos = score_anchor_px() - size * 0.5f;
+  score_text_transform->pos =
+      shrooms::pixel_snap::centered_top_left(score_anchor_px(), size);
 }
 
 inline void update_heart_layout() {
@@ -461,9 +463,10 @@ inline void update_entry_layout(Entry& entry) {
     const glm::vec2 icon_center{row_left + icon_size.x * 0.5f, row_center.y};
     entry.icon_transform->pos = shrooms::screen::center_to_top_left(icon_center, icon_size);
   }
-  entry.score_text_transform->pos =
-      glm::vec2{row_left + icon_size.x + config.row_icon_gap_px,
-                row_center.y - text_size.y * 0.5f};
+  entry.score_text_transform->pos = shrooms::pixel_snap::point(glm::vec2{
+      row_left + icon_size.x + config.row_icon_gap_px,
+      row_center.y - text_size.y * 0.5f,
+  });
 }
 
 inline void apply_layout() {

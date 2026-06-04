@@ -33,6 +33,7 @@
 #include "controls.hpp"
 #include "countdown.hpp"
 #include "player.hpp"
+#include "pixel_snap.hpp"
 #include "score_hud.hpp"
 #include "scoreboard.hpp"
 #include "shrooms_screen.hpp"
@@ -282,7 +283,7 @@ inline void update_line(text::TextObject* text_obj, transform::NoRotationTransfo
   const auto layout = engine::text::layout_text(wrapped, 0.0f, 0.0f, font_px);
   const glm::vec2 size{layout.width, layout.height};
   const glm::vec2 center = shrooms::screen::norm_to_pixels(center_norm);
-  transform->pos = shrooms::screen::center_to_top_left(center, size);
+  transform->pos = shrooms::pixel_snap::centered_top_left(center, size);
 }
 
 inline void clear_line(text::TextObject* text_obj) {

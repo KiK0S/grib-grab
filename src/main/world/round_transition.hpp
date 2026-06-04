@@ -22,6 +22,7 @@
 #include "systems/transformation/transform_object.hpp"
 
 #include "shrooms_screen.hpp"
+#include "pixel_snap.hpp"
 #include "vfx.hpp"
 
 namespace round_transition {
@@ -109,7 +110,7 @@ inline void update_text_layout(const std::string& value) {
   const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, config.text_font_px);
   const glm::vec2 size{layout.width, layout.height};
   const glm::vec2 center = shrooms::screen::norm_to_pixels(config.text_position_norm);
-  text_transform->pos = center - size * 0.5f;
+  text_transform->pos = shrooms::pixel_snap::centered_top_left(center, size);
 }
 
 inline void spawn_ambient_spores() {

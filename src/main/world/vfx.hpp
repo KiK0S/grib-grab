@@ -23,6 +23,7 @@
 #include "systems/transformation/transform_object.hpp"
 #include "engine/geometry_builder.h"
 #include "engine/resource_ids.h"
+#include "pixel_snap.hpp"
 
 namespace vfx {
 
@@ -495,7 +496,8 @@ struct ScoreDeltaText : public dynamic::DynamicObject {
         std::sin(wobble_phase + elapsed * wobble_speed * 6.28318530718f) * wobble_amplitude_px;
 
     if (auto* transform = entity->get<transform::NoRotationTransform>()) {
-      transform->pos = glm::vec2{center.x + wobble, center.y} - size * 0.5f;
+      transform->pos = shrooms::pixel_snap::centered_top_left(
+          glm::vec2{center.x + wobble, center.y}, size);
     }
     if (auto* tint = entity->get<color::OneColor>()) {
       tint->color = base_color;
@@ -976,7 +978,7 @@ inline void spawn_score_delta(const glm::vec2& center, int delta) {
 
   auto* entity = arena::create<ecs::Entity>();
   auto* transform = arena::create<transform::NoRotationTransform>();
-  transform->pos = start - size * 0.5f;
+  transform->pos = shrooms::pixel_snap::centered_top_left(start, size);
   entity->add(transform);
   entity->add(arena::create<layers::ConstLayer>(score_delta_config.layer));
   entity->add(arena::create<text::TextObject>(text, score_delta_config.font_px));
