@@ -693,9 +693,9 @@ inline std::string base_level_icon_texture(size_t index) {
   }
   switch (index) {
     case 0:
-      return "emoji_hedgehog";
-    case 1:
       return "emoji_tree";
+    case 1:
+      return "emoji_hedgehog";
     case 2:
       return "emoji_house";
     case 3:
@@ -703,9 +703,9 @@ inline std::string base_level_icon_texture(size_t index) {
     case 4:
       return "emoji_fly";
     case 5:
-      return "emoji_crown";
-    case 6:
       return "emoji_strawberry";
+    case 6:
+      return "emoji_crown";
     default:
       return "";
   }
