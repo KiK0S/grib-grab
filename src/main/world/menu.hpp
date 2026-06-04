@@ -271,6 +271,7 @@ inline void apply_menu_background(const std::string& texture_name, bool level_la
   if (!menu_background_sprite || !menu_background_transform) return;
 
   std::string resolved = texture_name.empty() ? kDefaultMenuBackgroundTexture : texture_name;
+  resolved = levels::level_texture_name(resolved);
   engine::TextureId tex_id = engine::resources::register_texture(resolved);
   if (tex_id == engine::kInvalidTextureId && resolved != kDefaultMenuBackgroundTexture) {
     resolved = kDefaultMenuBackgroundTexture;

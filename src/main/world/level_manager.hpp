@@ -344,6 +344,14 @@ inline std::string mushroom_icon_texture(const std::string& type) {
   return type;
 }
 
+inline std::string level_texture_name(const std::string& level_id) {
+  if (level_id == "level_1_eli") return "level_2_eli";
+  if (level_id == "level_2_ezh") return "level_1_ezh";
+  if (level_id == "level_6_yagoda") return "level_7_yagoda";
+  if (level_id == "level_7_tzar") return "level_6_tzar";
+  return level_id;
+}
+
 inline void layout_background_sprite(const std::string& texture_name) {
   if (!background_sprite || !background_transform) return;
   if (texture_name.empty()) return;
@@ -369,10 +377,11 @@ inline void register_background_sprite(render_system::SpriteRenderable* sprite,
 inline void set_background_texture(const std::string& texture_name) {
   if (!background_sprite) return;
   if (texture_name.empty()) return;
-  const engine::TextureId tex_id = engine::resources::register_texture(texture_name);
+  const std::string resolved = level_texture_name(texture_name);
+  const engine::TextureId tex_id = engine::resources::register_texture(resolved);
   if (tex_id != engine::kInvalidTextureId) {
     background_sprite->texture_id = tex_id;
-    layout_background_sprite(texture_name);
+    layout_background_sprite(resolved);
   }
 }
 
