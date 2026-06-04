@@ -114,13 +114,13 @@ inline float aspect_ratio(std::string_view texture_name) {
   }
   if (texture_name == "bat_face") return 180.0f / 154.0f;
 
-  if (texture_name == "level_1_ezh") return 298.0f / 255.0f;
-  if (texture_name == "level_2_eli") return 298.0f / 290.0f;
+  if (texture_name == "level_1_eli") return 298.0f / 290.0f;
+  if (texture_name == "level_2_ezh") return 298.0f / 255.0f;
   if (texture_name == "level_3_izba") return 298.0f / 266.0f;
   if (texture_name == "level_4_lyaguha") return 298.0f / 287.0f;
   if (texture_name == "level_5_mol") return 312.0f / 263.0f;
-  if (texture_name == "level_6_tzar") return 298.0f / 277.0f;
-  if (texture_name == "level_7_yagoda") return 298.0f / 281.0f;
+  if (texture_name == "level_6_yagoda") return 298.0f / 281.0f;
+  if (texture_name == "level_7_tzar") return 298.0f / 277.0f;
 
   if (texture_name == "bottom_1") return 298.0f / 20.0f;
   if (texture_name == "bottom_2") return 298.0f / 23.0f;
