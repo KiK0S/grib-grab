@@ -16,6 +16,15 @@ spawn lisi4ka lisi4ka_spawned 1.8 0.6 3
 spawn borovik borovik_spawned 1.6 0.8 6
 level_end
 
+level level_1_ezh
+recipe mukhomor 3
+recipe lisi4ka 3
+recipe borovik 3
+spawn mukhomor mukhomor_spawned 2.5 0.75 3
+spawn lisi4ka lisi4ka_spawned 2.2 0.65 3
+spawn borovik borovik_spawned 2.0 0.7 3
+level_end
+
 level level_3_izba
 recipe mukhomor 5
 recipe lisi4ka 4
