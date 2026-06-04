@@ -47,6 +47,7 @@ namespace menu {
 
 constexpr size_t kMaxLevelLines = 10;
 constexpr float kMenuTextX = -0.86f;
+constexpr float kMenuTextRightX = 0.86f;
 constexpr float kLeaderboardTextX = kMenuTextX;
 constexpr float kMenuTextYOffsetNorm = 0.1f;
 constexpr float kModeSwitchCenterX = 0.44f;
@@ -127,6 +128,7 @@ struct TextLine {
   float selected_scale = 1.0f;
   float font_px = 18.0f;
   bool center_on_anchor = false;
+  bool right_align_to_anchor = false;
   bool icon_before_text = false;
 };
 
@@ -503,8 +505,10 @@ inline void update_text(TextLine& line, const std::string& value) {
   const float content_bottom = has_icon ? std::max(text_size.y, icon_y + icon_h) : text_size.y;
   line.size = glm::vec2{std::max(0.0f, content_right), std::max(0.0f, content_bottom - content_top)};
   const glm::vec2 content_origin =
-      line.center_on_anchor ? (line.anchor_pos - line.size * 0.5f)
-                            : (line.anchor_pos + glm::vec2{0.0f, content_top});
+      line.center_on_anchor
+          ? (line.anchor_pos - line.size * 0.5f)
+          : (line.anchor_pos +
+             glm::vec2{line.right_align_to_anchor ? -line.size.x : 0.0f, content_top});
 
   if (line.transform) {
     line.transform->pos =
@@ -2306,7 +2310,8 @@ inline void init() {
   settings_line = make_text_line(glm::vec2{kMenuTextX, 0.72f}, 25.0f, 6);
   audio_line = make_text_line(glm::vec2{kMenuTextX, 0.42f}, 19.0f, 6);
   tutorial_line = make_text_line(glm::vec2{kMenuTextX, 0.28f}, 22.0f, 6);
-  credits_line = make_text_line(glm::vec2{kMenuTextX, -0.92f}, 18.0f, 6);
+  credits_line = make_text_line(glm::vec2{kMenuTextRightX, -0.92f}, 18.0f, 6);
+  credits_line.right_align_to_anchor = true;
   update_text(credits_line, "Game by KiK0S, art by deadmarla.");
 
   auto style_menu_action = [](TextLine& line) {
