@@ -262,9 +262,7 @@ struct LoopingMushroomEffect : public dynamic::DynamicObject {
         size(size),
         target_center(target_center),
         period(period),
-        trigger_at(trigger_at) {
-    reset_subject();
-  }
+        trigger_at(trigger_at) {}
 
   ~LoopingMushroomEffect() override { Component::component_count--; }
 
@@ -273,6 +271,9 @@ struct LoopingMushroomEffect : public dynamic::DynamicObject {
       if (subject && !subject->is_pending_deletion()) subject->mark_deleted();
       subject = nullptr;
       return;
+    }
+    if (!subject && !triggered) {
+      reset_subject();
     }
     const float dt = static_cast<float>(ecs::context().delta_seconds);
     elapsed += std::max(0.0f, dt);
