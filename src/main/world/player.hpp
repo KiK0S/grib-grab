@@ -152,6 +152,24 @@ inline void set_movement_locked(bool locked) {
 
 inline bool movement_locked() { return player_movement_locked; }
 
+inline glm::vec2 player_display_size() {
+  return shrooms::texture_sizing::from_reference_width("witch_right_1", 34.0f);
+}
+
+inline std::map<std::string, std::vector<animation::SpriteFrame>>
+make_player_animation_clips() {
+  std::map<std::string, std::vector<animation::SpriteFrame>> clips{};
+  clips["left"] = {animation::SpriteFrame{engine::resources::register_texture("witch_left_1"),
+                                          0.15f},
+                   animation::SpriteFrame{engine::resources::register_texture("witch_left_2"),
+                                          0.15f}};
+  clips["right"] = {animation::SpriteFrame{engine::resources::register_texture("witch_right_1"),
+                                           0.15f},
+                    animation::SpriteFrame{engine::resources::register_texture("witch_right_2"),
+                                           0.15f}};
+  return clips;
+}
+
 enum class FamiliarState {
   Ready,
   EmergingTrap,
@@ -250,6 +268,107 @@ struct FamiliarSprite : public render_system::ImplicitSkeletonedSprite {
   float model_rotation_rad = 0.0f;
   render_system::ImplicitWarpPointGenerator idle_point_generator{};
 };
+
+inline glm::vec2 familiar_display_size() {
+  return shrooms::texture_sizing::from_reference_width("famiriar", 29.0f);
+}
+
+inline render_system::ImplicitWarpPointGenerator make_familiar_idle_point_generator() {
+  return [](float time_seconds, std::vector<render_system::ImplicitWarpPoint>& out_points) {
+    out_points.clear();
+    out_points.reserve(9);
+
+    auto add_point = [&](float from_x, float from_y, float to_x, float to_y,
+                         float radius_uv) {
+      const float clamped_from_x = std::clamp(from_x, 0.0f, 1.0f);
+      const float clamped_from_y = std::clamp(from_y, 0.0f, 1.0f);
+      const float clamped_to_x = std::clamp(to_x, 0.0f, 1.0f);
+      const float clamped_to_y = std::clamp(to_y, 0.0f, 1.0f);
+      out_points.push_back(render_system::ImplicitWarpPoint{
+          engine::Vec2{clamped_from_x, clamped_from_y},
+          engine::Vec2{clamped_to_x, clamped_to_y},
+          std::max(0.0f, radius_uv),
+      });
+    };
+
+    // Keep sprite corners pinned to avoid border drift.
+    add_point(0.0f, 0.0f, 0.0f, 0.0f, 0.65f);
+    add_point(1.0f, 0.0f, 1.0f, 0.0f, 0.65f);
+    add_point(0.0f, 1.0f, 0.0f, 1.0f, 0.65f);
+    add_point(1.0f, 1.0f, 1.0f, 1.0f, 0.65f);
+
+    // Hold near extremes and snap between them for a flicker-like motion.
+    auto flicker_wave = [](float t) {
+      const float hold = 0.38f;
+      const float travel = 0.12f;
+      const float cycle = hold + travel + hold + travel;
+      float p = std::fmod(t, cycle);
+      if (p < 0.0f) p += cycle;
+
+      auto smooth01 = [](float u) {
+        u = std::clamp(u, 0.0f, 1.0f);
+        return u * u * (3.0f - 2.0f * u);
+      };
+
+      if (p < hold) return 1.0f;
+      p -= hold;
+      if (p < travel) {
+        const float u = smooth01(p / travel);
+        return 1.0f - 2.0f * u;
+      }
+      p -= travel;
+      if (p < hold) return -1.0f;
+      p -= hold;
+      const float u = smooth01(p / travel);
+      return -1.0f + 2.0f * u;
+    };
+
+    const float phase = time_seconds * 4.0f;
+    const float wave = flicker_wave(phase);
+
+    // Joint layout authored in texture-space pixels.
+    constexpr float kTexWidth = 28.5f;
+    constexpr float kTexHeight = 14.25f;
+    auto to_uv_x = [](float px) { return px / kTexWidth; };
+    auto to_uv_y = [](float py) { return py / kTexHeight; };
+
+    const float left_inner_x_base = to_uv_x(10.0f);
+    const float left_inner_y_base = to_uv_y(4.0f);
+    const float right_inner_x_base = to_uv_x(21.0f);
+    const float right_inner_y_base = to_uv_y(2.0f);
+    const float left_outer_x_base = to_uv_x(0.0f);
+    const float left_outer_y_base = to_uv_y(11.0f);
+    const float right_outer_x_base = to_uv_x(28.5f);
+    const float right_outer_y_base = to_uv_y(9.0f);
+
+    const float center_x = 0.5f * (left_inner_x_base + right_inner_x_base);
+    const float center_y_base = 0.5f * (left_inner_y_base + right_inner_y_base);
+    const float center_y = center_y_base + 0.07f * wave;
+
+    const float inner_x_delta = 0.035f * wave;
+    const float left_inner_x = left_inner_x_base + inner_x_delta;
+    const float right_inner_x = right_inner_x_base - inner_x_delta;
+
+    const float outer_x_delta = 0.052f * wave;
+    const float left_outer_x = left_inner_x_base + outer_x_delta;
+    const float right_outer_x = right_inner_x_base - outer_x_delta;
+
+    add_point(left_outer_x_base, left_outer_y_base, left_outer_x, center_y, 0.42f);
+    add_point(left_inner_x_base, left_inner_y_base, left_inner_x, center_y, 0.34f);
+    add_point(center_x, center_y_base, center_x, center_y, 0.30f);
+    add_point(right_inner_x_base, right_inner_y_base, right_inner_x, center_y, 0.34f);
+    add_point(right_outer_x_base, right_outer_y_base, right_outer_x, center_y, 0.42f);
+  };
+}
+
+inline void configure_familiar_sprite(FamiliarSprite* sprite) {
+  if (!sprite) return;
+  sprite->warp_power = 2.0f;
+  sprite->warp_epsilon = 0.02f;
+  sprite->warp_rest_weight = 1.25f;
+  sprite->point_generator = make_familiar_idle_point_generator();
+  sprite->idle_point_generator = sprite->point_generator;
+}
 
 struct FamiliarMaskRenderable : public render_system::Renderable {
   explicit FamiliarMaskRenderable(FamiliarSprite* source)
@@ -1048,7 +1167,7 @@ inline collision::TriggerObject* make_familiar_sort_trigger(FamiliarLogic* logic
 
 inline void init_familiars() {
   if (!player_transform) return;
-  familiar_size = shrooms::texture_sizing::from_reference_width("famiriar", 29.0f);
+  familiar_size = familiar_display_size();
   const engine::TextureId tex_id = engine::resources::register_texture("famiriar");
   const engine::TextureId strike_tex_id = engine::resources::register_texture("familiar_attack");
 
@@ -1073,99 +1192,7 @@ inline void init_familiars() {
     entity->add(arena::create<layers::ConstLayer>(3));
     auto* familiar_sprite =
         arena::create<FamiliarSprite>(tex_id, familiar_size);
-    familiar_sprite->warp_power = 2.0f;
-    familiar_sprite->warp_epsilon = 0.02f;
-    familiar_sprite->warp_rest_weight = 1.25f;
-    familiar_sprite->point_generator =
-        [](float time_seconds, std::vector<render_system::ImplicitWarpPoint>& out_points) {
-          out_points.clear();
-          out_points.reserve(9);
-
-          auto add_point = [&](float from_x, float from_y, float to_x, float to_y,
-                               float radius_uv) {
-            const float clamped_from_x = std::clamp(from_x, 0.0f, 1.0f);
-            const float clamped_from_y = std::clamp(from_y, 0.0f, 1.0f);
-            const float clamped_to_x = std::clamp(to_x, 0.0f, 1.0f);
-            const float clamped_to_y = std::clamp(to_y, 0.0f, 1.0f);
-            out_points.push_back(render_system::ImplicitWarpPoint{
-                engine::Vec2{clamped_from_x, clamped_from_y},
-                engine::Vec2{clamped_to_x, clamped_to_y},
-                std::max(0.0f, radius_uv),
-            });
-          };
-
-          // Keep sprite corners pinned to avoid border drift.
-          add_point(0.0f, 0.0f, 0.0f, 0.0f, 0.65f);
-          add_point(1.0f, 0.0f, 1.0f, 0.0f, 0.65f);
-          add_point(0.0f, 1.0f, 0.0f, 1.0f, 0.65f);
-          add_point(1.0f, 1.0f, 1.0f, 1.0f, 0.65f);
-
-          // Hold near extremes and snap between them for a flicker-like motion.
-          auto flicker_wave = [](float t) {
-            const float hold = 0.38f;
-            const float travel = 0.12f;
-            const float cycle = hold + travel + hold + travel;
-            float p = std::fmod(t, cycle);
-            if (p < 0.0f) p += cycle;
-
-            auto smooth01 = [](float u) {
-              u = std::clamp(u, 0.0f, 1.0f);
-              return u * u * (3.0f - 2.0f * u);
-            };
-
-            if (p < hold) return 1.0f;
-            p -= hold;
-            if (p < travel) {
-              const float u = smooth01(p / travel);
-              return 1.0f - 2.0f * u;
-            }
-            p -= travel;
-            if (p < hold) return -1.0f;
-            p -= hold;
-            const float u = smooth01(p / travel);
-            return -1.0f + 2.0f * u;
-          };
-
-          const float phase = time_seconds * 4.0f;
-          const float wave = flicker_wave(phase);
-
-          // Joint layout authored in texture-space pixels.
-          constexpr float kTexWidth = 28.5f;
-          constexpr float kTexHeight = 14.25f;
-          auto to_uv_x = [](float px) { return px / kTexWidth; };
-          auto to_uv_y = [](float py) { return py / kTexHeight; };
-
-          const float left_inner_x_base = to_uv_x(10.0f);
-          const float left_inner_y_base = to_uv_y(4.0f);
-          const float right_inner_x_base = to_uv_x(21.0f);
-          const float right_inner_y_base = to_uv_y(2.0f);
-          const float left_outer_x_base = to_uv_x(0.0f);
-          const float left_outer_y_base = to_uv_y(11.0f);
-          const float right_outer_x_base = to_uv_x(28.5f);
-          const float right_outer_y_base = to_uv_y(9.0f);
-
-          // Center joint: midpoint of inner joints.
-          const float center_x = 0.5f * (left_inner_x_base + right_inner_x_base);
-          const float center_y_base = 0.5f * (left_inner_y_base + right_inner_y_base);
-          const float center_y_delta = 0.07f * wave;
-          const float center_y = center_y_base + center_y_delta;
-
-          const float inner_x_delta = 0.035f * wave;
-          const float left_inner_x = left_inner_x_base + inner_x_delta;
-          const float right_inner_x = right_inner_x_base - inner_x_delta;
-
-          // Give outer joints a slightly stronger swing for more expression.
-          const float outer_x_delta = 0.052f * wave;
-          const float left_outer_x = left_inner_x_base + outer_x_delta;
-          const float right_outer_x = right_inner_x_base - outer_x_delta;
-
-          add_point(left_outer_x_base, left_outer_y_base, left_outer_x, center_y, 0.42f);
-          add_point(left_inner_x_base, left_inner_y_base, left_inner_x, center_y, 0.34f);
-          add_point(center_x, center_y_base, center_x, center_y, 0.30f);
-          add_point(right_inner_x_base, right_inner_y_base, right_inner_x, center_y, 0.34f);
-          add_point(right_outer_x_base, right_outer_y_base, right_outer_x, center_y, 0.42f);
-        };
-    familiar_sprite->idle_point_generator = familiar_sprite->point_generator;
+    configure_familiar_sprite(familiar_sprite);
     entity->add(familiar_sprite);
     entity->add(arena::create<FamiliarMaskRenderable>(familiar_sprite));
     auto* hidden = arena::create<hidden::HiddenObject>();
@@ -1314,7 +1341,7 @@ inline void reset_for_new_level() {
 
 inline void init() {
   player_entity = arena::create<ecs::Entity>();
-  player_size = shrooms::texture_sizing::from_reference_width("witch_right_1", 34.0f);
+  player_size = player_display_size();
 
   player_transform = arena::create<transform::NoRotationTransform>();
   glm::vec2 center = shrooms::screen::norm_to_pixels(glm::vec2{0.0f, -0.6f});
@@ -1338,17 +1365,7 @@ inline void init() {
   player_color = arena::create<color::OneColor>(glm::vec4{1.0f, 1.0f, 1.0f, 1.0f});
   player_entity->add(player_color);
 
-  std::map<std::string, std::vector<animation::SpriteFrame>> clips{};
-  clips["left"] = {animation::SpriteFrame{engine::resources::register_texture("witch_left_1"),
-                                          0.15f},
-                   animation::SpriteFrame{engine::resources::register_texture("witch_left_2"),
-                                          0.15f}};
-  clips["right"] = {animation::SpriteFrame{engine::resources::register_texture("witch_right_1"),
-                                           0.15f},
-                    animation::SpriteFrame{engine::resources::register_texture("witch_right_2"),
-                                           0.15f}};
-
-  player_anim = arena::create<animation::SpriteAnimation>(std::move(clips), "right");
+  player_anim = arena::create<animation::SpriteAnimation>(make_player_animation_clips(), "right");
   player_entity->add(player_anim);
 
   const float step_px = shrooms::screen::scale_to_pixels(glm::vec2{0.02f, 0.0f}).x * 0.5f;

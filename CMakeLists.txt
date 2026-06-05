@@ -276,4 +276,48 @@ else()
   find_package(SDL2 REQUIRED)
   target_link_libraries(shrooms PRIVATE SDL2::SDL2)
   target_include_directories(shrooms PRIVATE ${SDL2_INCLUDE_DIRS})
+
+  add_executable(shrooms_museum
+    src/main/museum_main.cpp
+    src/main/shrooms_museum.cpp
+  )
+
+  target_link_libraries(shrooms_museum
+    PRIVATE
+      engine_core
+      engine_render
+      engine_webgl
+      engine_platform
+      SDL2::SDL2
+  )
+
+  target_include_directories(shrooms_museum PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rd-party/engine/libs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/main
+    ${SDL2_INCLUDE_DIRS}
+  )
+
+  target_compile_features(shrooms_museum PRIVATE cxx_std_20)
+
+  add_custom_command(TARGET shrooms_museum POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
+    $<TARGET_FILE_DIR:shrooms_museum>/assets
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
+    $<TARGET_FILE_DIR:shrooms_museum>/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${SHROOMS_ASSET_DIR}
+    $<TARGET_FILE_DIR:shrooms_museum>/assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${SHROOMS_SHADER_DIR}
+    $<TARGET_FILE_DIR:shrooms_museum>/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${SHROOMS_CUSTOM_SHADER_DIR}
+    $<TARGET_FILE_DIR:shrooms_museum>/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${SHROOMS_SHADER_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${SHROOMS_CUSTOM_SHADER_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+  )
 endif()
