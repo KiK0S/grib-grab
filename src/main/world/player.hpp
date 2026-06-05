@@ -159,14 +159,18 @@ inline glm::vec2 player_display_size() {
 inline std::map<std::string, std::vector<animation::SpriteFrame>>
 make_player_animation_clips() {
   std::map<std::string, std::vector<animation::SpriteFrame>> clips{};
-  clips["left"] = {animation::SpriteFrame{engine::resources::register_texture("witch_left_1"),
-                                          0.15f},
-                   animation::SpriteFrame{engine::resources::register_texture("witch_left_2"),
-                                          0.15f}};
-  clips["right"] = {animation::SpriteFrame{engine::resources::register_texture("witch_right_1"),
-                                           0.15f},
-                    animation::SpriteFrame{engine::resources::register_texture("witch_right_2"),
-                                           0.15f}};
+  const std::vector<animation::SpriteFrame> left{
+      animation::SpriteFrame{engine::resources::register_texture("witch_left_1"), 0.15f},
+      animation::SpriteFrame{engine::resources::register_texture("witch_left_2"), 0.15f},
+  };
+  const std::vector<animation::SpriteFrame> right{
+      animation::SpriteFrame{engine::resources::register_texture("witch_right_1"), 0.15f},
+      animation::SpriteFrame{engine::resources::register_texture("witch_right_2"), 0.15f},
+  };
+  clips["left"] = left;
+  clips["right"] = right;
+  clips["idle_left"] = left;
+  clips["idle_right"] = right;
   return clips;
 }
 

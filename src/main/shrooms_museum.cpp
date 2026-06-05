@@ -4,8 +4,10 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <map>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "ecs/context.hpp"
@@ -40,12 +42,13 @@ constexpr const char* kSceneName = "main";
 constexpr float kTabSeconds = 10.0f;
 constexpr float kTopChromePx = 86.0f;
 
-constexpr std::array<std::string_view, 6> kPageNames{
+constexpr std::array<std::string_view, 7> kPageNames{
     "backgrounds",
     "sprites",
     "player animations",
     "mushroom animations",
     "bat animations",
+    "hud samples",
     "font",
 };
 
@@ -134,6 +137,14 @@ ecs::Entity* create_text(const std::string& value, const glm::vec2& top_left,
   return entity;
 }
 
+ecs::Entity* create_centered_text(const std::string& value, const glm::vec2& center,
+                                  float font_px, const glm::vec4& color, int layer) {
+  const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, font_px);
+  return create_text(value, glm::vec2{center.x - layout.width * 0.5f,
+                                      center.y - layout.height * 0.5f},
+                     font_px, color, layer);
+}
+
 ecs::Entity* create_sprite(engine::TextureId texture_id, const glm::vec2& center,
                            const glm::vec2& size, int layer,
                            const glm::vec4& tint = glm::vec4{1.0f}) {
@@ -164,6 +175,16 @@ void create_caption(std::string_view label, const glm::vec2& center, float y, in
   const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, font_px);
   create_text(value, glm::vec2{center.x - layout.width * 0.5f, y}, font_px,
               glm_color(0.82f, 0.86f, 0.92f, 0.95f), layer);
+}
+
+void add_face_animation(ecs::Entity* entity) {
+  if (!entity) return;
+  const engine::TextureId frame_1 = engine::resources::register_texture("face_mini_1");
+  const engine::TextureId frame_2 = engine::resources::register_texture("face_mini_2");
+  std::map<std::string, std::vector<animation::SpriteFrame>> clips{};
+  clips["idle"] = {animation::SpriteFrame{frame_1, 0.25f},
+                   animation::SpriteFrame{frame_2, 0.25f}};
+  entity->add(arena::create<animation::SpriteAnimation>(std::move(clips), "idle"));
 }
 
 void clear_scene_entities() {
@@ -227,10 +248,7 @@ struct LoopingMushroomFall : public dynamic::DynamicObject {
     const float safe_period = std::max(0.1f, period);
     float p = std::fmod(elapsed, safe_period) / safe_period;
     if (p < 0.0f) p += 1.0f;
-    const glm::vec2 center = start_center + glm::vec2{
-                                                std::sin(p * 6.2831853f) * size.x * 0.16f,
-                                                fall_px * p,
-                                            };
+    const glm::vec2 center = start_center + glm::vec2{0.0f, fall_px * p};
     transform->pos = top_left_for_center(center, size);
     if (tint) {
       const float fade = p > 0.82f ? 1.0f - clamp01((p - 0.82f) / 0.18f) : 1.0f;
@@ -378,7 +396,7 @@ struct MuseumFamiliarMotion : public dynamic::DynamicObject {
     if (p < 0.22f) {
       const float t = smooth01(p / 0.22f);
       apply_pose(lerp(center + glm::vec2{0.0f, 72.0f}, center, t),
-                 0.04f + 0.96f * t, 0.0f, normal_texture_id, true);
+                 0.04f + 0.96f * t, 0.0f, normal_texture_id, false);
       return;
     }
     if (p < 0.76f) {
@@ -387,7 +405,7 @@ struct MuseumFamiliarMotion : public dynamic::DynamicObject {
     }
     const float t = smooth01((p - 0.76f) / 0.24f);
     apply_pose(lerp(center, center + glm::vec2{0.0f, 72.0f}, t),
-               1.0f + (0.04f - 1.0f) * t, 0.0f, normal_texture_id, true);
+               1.0f + (0.04f - 1.0f) * t, 0.0f, normal_texture_id, false);
   }
 
   void update_return(float p) {
@@ -520,10 +538,16 @@ void build_player_page(float view_w, float) {
       view_w * 0.83f,
   };
 
-  create_sprite("witch_left_1", glm::vec2{xs[0], y}, size, 2);
+  if (auto* idle_left = create_sprite("witch_left_1", glm::vec2{xs[0], y}, size, 2)) {
+    idle_left->add(arena::create<animation::SpriteAnimation>(
+        player::make_player_animation_clips(), "idle_left"));
+  }
   create_caption("idle left", glm::vec2{xs[0], 0.0f}, y + size.y * 0.72f);
 
-  create_sprite("witch_right_1", glm::vec2{xs[1], y}, size, 2);
+  if (auto* idle_right = create_sprite("witch_right_1", glm::vec2{xs[1], y}, size, 2)) {
+    idle_right->add(arena::create<animation::SpriteAnimation>(
+        player::make_player_animation_clips(), "idle_right"));
+  }
   create_caption("idle right", glm::vec2{xs[1], 0.0f}, y + size.y * 0.72f);
 
   auto* left = create_sprite("witch_left_1", glm::vec2{xs[2] + 42.0f, y}, size, 2);
@@ -593,6 +617,86 @@ void build_bat_page(float view_w, float) {
 
   create_familiar_demo(glm::vec2{xs[2], y}, FamiliarMuseumMode::Return);
   create_caption("return", glm::vec2{xs[2], 0.0f}, y + 140.0f);
+}
+
+void build_hud_page(float view_w, float) {
+  add_section_title("hud samples", 40.0f, kTopChromePx + 10.0f);
+
+  const float center_y = kTopChromePx + 335.0f;
+  const glm::vec4 label_color = glm_color(0.82f, 0.86f, 0.92f, 0.95f);
+  const glm::vec4 text_color = glm_color(0.98f, 0.98f, 1.0f, 1.0f);
+  const glm::vec4 muted_tint = glm_color(0.36f, 0.36f, 0.40f, 0.82f);
+
+  const glm::vec2 face_panel_center{view_w * 0.30f, center_y};
+  const glm::vec2 face_panel_size = fit_texture_size("menu_face", 245.0f, 230.0f);
+  create_sprite("menu_face", face_panel_center, face_panel_size, 1);
+
+  const glm::vec2 bat_size = fit_texture_size("bat_face", 38.0f, 34.0f);
+  const float bat_gap = 9.0f;
+  const float bat_row_width = bat_size.x * 3.0f + bat_gap * 2.0f;
+  const glm::vec2 bat_row_start{
+      face_panel_center.x - bat_row_width * 0.5f + bat_size.x * 0.5f,
+      face_panel_center.y - face_panel_size.y * 0.28f,
+  };
+  for (int i = 0; i < 3; ++i) {
+    const glm::vec4 tint = i < 2 ? glm::vec4{1.0f} : muted_tint;
+    create_sprite("bat_face",
+                  bat_row_start + glm::vec2{static_cast<float>(i) * (bat_size.x + bat_gap),
+                                            0.0f},
+                  bat_size, 3, tint);
+  }
+
+  create_centered_text("127",
+                       face_panel_center + glm::vec2{0.0f, -face_panel_size.y * 0.04f},
+                       24.0f, text_color, 4);
+
+  const glm::vec2 face_size = fit_texture_size("face_mini_1", 112.0f, 66.0f);
+  auto* face = create_sprite("face_mini_1",
+                             face_panel_center + glm::vec2{0.0f, face_panel_size.y * 0.22f},
+                             face_size, 4);
+  add_face_animation(face);
+  create_caption("animated player face", glm::vec2{face_panel_center.x, 0.0f},
+                 face_panel_center.y + face_panel_size.y * 0.62f);
+
+  const glm::vec2 board_center{view_w * 0.70f, center_y};
+  const glm::vec2 board_size = fit_texture_size("menu_scoreboard", 270.0f, 365.0f);
+  create_sprite("menu_scoreboard", board_center, board_size, 1);
+  create_centered_text("127", board_center + glm::vec2{0.0f, -board_size.y * 0.34f},
+                       25.0f, text_color, 4);
+
+  struct ScoreboardRow {
+    std::string_view texture_name;
+    std::string_view value;
+  };
+  constexpr std::array<ScoreboardRow, 3> rows{{
+      {"borovik_small", "2/3"},
+      {"mukhomor_small", "1/2"},
+      {"lisi4ka_small", "0/1"},
+  }};
+
+  const float row_gap = board_size.y * 0.15f;
+  const float row_start_y = board_center.y - row_gap * 0.45f;
+  for (size_t i = 0; i < rows.size(); ++i) {
+    const auto& row = rows[i];
+    const glm::vec2 row_center{board_center.x, row_start_y + static_cast<float>(i) * row_gap};
+    const glm::vec2 icon_size = fit_texture_size(row.texture_name, 42.0f, 42.0f);
+    const float font_px = 23.0f;
+    const std::string value{row.value};
+    const auto layout = engine::text::layout_text(value, 0.0f, 0.0f, font_px);
+    const float gap = 14.0f;
+    const float total_width = icon_size.x + gap + layout.width;
+    const float left = board_center.x - total_width * 0.5f;
+
+    create_sprite(row.texture_name, glm::vec2{left + icon_size.x * 0.5f, row_center.y},
+                  icon_size, 4);
+    create_text(value, glm::vec2{left + icon_size.x + gap,
+                                 row_center.y - layout.height * 0.5f},
+                font_px, text_color, 4);
+  }
+
+  create_centered_text("sample scoreboard",
+                       glm::vec2{board_center.x, board_center.y + board_size.y * 0.60f},
+                       14.0f, label_color, 20);
 }
 
 void build_font_page(float view_w, float view_h) {
@@ -668,6 +772,9 @@ struct MuseumController : public dynamic::DynamicObject {
         build_bat_page(w, h);
         break;
       case 5:
+        build_hud_page(w, h);
+        break;
+      case 6:
       default:
         build_font_page(w, h);
         break;
