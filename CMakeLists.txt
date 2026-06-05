@@ -92,12 +92,14 @@ if(NOT EXISTS "${SHROOMS_ASSET_DIR}")
 endif()
 
 set(SHROOMS_WEB_PRELOAD_FILES)
+set(SHROOMS_WEB_PRELOAD_DEPENDS)
 
 macro(shrooms_add_web_preload source_path virtual_path)
   if(NOT EXISTS "${source_path}")
     message(FATAL_ERROR "Missing web preload file: ${source_path}")
   endif()
   list(APPEND SHROOMS_WEB_PRELOAD_FILES "SHELL:--preload-file ${source_path}@${virtual_path}")
+  list(APPEND SHROOMS_WEB_PRELOAD_DEPENDS "${source_path}")
 endmacro()
 
 macro(shrooms_add_web_asset relative_path)
@@ -253,6 +255,7 @@ if(ENGINE_PLATFORM STREQUAL "web")
   set_property(TARGET shrooms APPEND PROPERTY LINK_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main/web/shrooms_shell.html
     ${SHROOMS_SERVICE_WORKER}
+    ${SHROOMS_WEB_PRELOAD_DEPENDS}
   )
   target_link_options(shrooms PRIVATE
     "-sWASM=1"
