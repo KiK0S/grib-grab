@@ -193,8 +193,8 @@ inline bool is_main_scene_active() {
 }
 
 inline bool pause_controls_blocked() {
-  return levels::has_pending_failure() || levels::level_finished || round_transition::is_active() ||
-         level_intro::is_active();
+  return countdown::is_active() || levels::has_pending_failure() || levels::level_finished ||
+         round_transition::is_active() || level_intro::is_active();
 }
 
 inline float clamp_unit(float value) {
@@ -620,7 +620,7 @@ struct PauseMenuController : public dynamic::DynamicObject {
       if (evt.kind != engine::InputKind::KeyDown) continue;
       const int key = input::normalize_key_code(evt.key_code);
       if (key != 'P') continue;
-      if (paused || !blocked) {
+      if (!blocked) {
         handle_toggle();
         return;
       }
