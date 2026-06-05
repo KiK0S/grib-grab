@@ -152,11 +152,8 @@ inline size_t infinite_collector_type_bag_pos = 0;
 inline uint32_t infinite_collector_type_bag_index = 0;
 inline constexpr size_t kInfiniteCollectorMinQueue = 3;
 inline constexpr size_t kInfiniteCollectorMaxQueue = 5;
-inline constexpr int kInfiniteCollectorScorePerLevel = 500;
-inline constexpr int kInfiniteCollectorReferenceScore = 500;
-inline constexpr int kInfiniteCollectorReferenceScorePerLevel = 150;
-inline constexpr int kInfiniteCollectorFirstDensityLevel =
-    kInfiniteCollectorReferenceScore / kInfiniteCollectorReferenceScorePerLevel;
+inline constexpr int kInfiniteCollectorScorePerLevel = 150;
+inline constexpr int kInfiniteCollectorFirstDensityLevel = 1;
 inline constexpr int kInfiniteRecipeScorePerLevel = 450;
 
 using TutorialSpawnHook = std::function<void(const std::string&, ecs::Entity*)>;
