@@ -31,6 +31,14 @@ int main() {
   config.height = view_h;
   config.title = "Shrooms Art Museum";
   config.renderer = engine::RendererKind::WebGL;
+  config.asset_roots = {
+      "/assets/shrooms",
+      "assets/shrooms",
+      "../assets/shrooms",
+      "/assets",
+      "assets",
+      "../assets",
+  };
 
   engine::SdlPlatform platform{};
   engine::InputQueue input{};

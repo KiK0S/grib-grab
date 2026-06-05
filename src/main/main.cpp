@@ -84,6 +84,14 @@ int main() {
   config.height = view_h;
   config.title = "Grib Grab";
   config.renderer = engine::RendererKind::WebGL;
+  config.asset_roots = {
+      "/assets/shrooms",
+      "assets/shrooms",
+      "../assets/shrooms",
+      "/assets",
+      "assets",
+      "../assets",
+  };
 
 #ifdef __EMSCRIPTEN__
   engine::EmscriptenPlatform platform{};
