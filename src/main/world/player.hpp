@@ -1227,7 +1227,8 @@ inline void reset_familiars() {
 }
 
 struct PlayerController : public dynamic::DynamicObject {
-  explicit PlayerController(float step_px) : dynamic::DynamicObject(), step_px(step_px) {}
+  explicit PlayerController(float speed_px_per_second)
+      : dynamic::DynamicObject(), speed_px_per_second(speed_px_per_second) {}
   ~PlayerController() override { Component::component_count--; }
 
   void update() override {
@@ -1255,19 +1256,20 @@ struct PlayerController : public dynamic::DynamicObject {
     }
     fire_pressed_last = fire_pressed;
 
-    float dx = 0.0f;
-    if (controls::is_down(controls::Action::MoveLeft)) dx -= step_px;
-    if (controls::is_down(controls::Action::MoveRight)) dx += step_px;
-    dx += touchscreen::joystick_value.x * step_px;
+    float axis = 0.0f;
+    if (controls::is_down(controls::Action::MoveLeft)) axis -= 1.0f;
+    if (controls::is_down(controls::Action::MoveRight)) axis += 1.0f;
+    axis += touchscreen::joystick_value.x;
 
     if (player_movement_locked) {
-      if (std::abs(dx) > 0.001f) {
+      if (std::abs(axis) > 0.001f) {
         flash_blocked_movement();
       }
       dust_timer = 0.0f;
       return;
     }
 
+    const float dx = axis * speed_px_per_second * std::max(0.0f, dt);
     if (dx == 0.0f) {
       dust_timer = 0.0f;
       return;
@@ -1312,7 +1314,7 @@ struct PlayerController : public dynamic::DynamicObject {
     vfx::spawn_spore(foot, config);
   }
 
-  float step_px = 0.0f;
+  float speed_px_per_second = 0.0f;
   float dust_timer = 0.0f;
   float dust_period = 0.08f;
   bool deploy_pressed_last = false;
@@ -1372,8 +1374,9 @@ inline void init() {
   player_anim = arena::create<animation::SpriteAnimation>(make_player_animation_clips(), "right");
   player_entity->add(player_anim);
 
-  const float step_px = shrooms::screen::scale_to_pixels(glm::vec2{0.02f, 0.0f}).x * 0.5f;
-  player_controller = arena::create<PlayerController>(step_px);
+  const float speed_px_per_second =
+      shrooms::screen::scale_to_pixels(glm::vec2{0.02f, 0.0f}).x * 0.5f * 60.0f;
+  player_controller = arena::create<PlayerController>(speed_px_per_second);
   player_entity->add(player_controller);
   player_vibe = arena::create<PlayerVibe>();
   player_vibe->bob_amp_px = shrooms::screen::scale_to_pixels(glm::vec2{0.0f, 0.01f}).y;

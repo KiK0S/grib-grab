@@ -151,10 +151,11 @@ inline float parse_float(std::istream& in) {
 }
 
 inline dynamic::MovingObject* parse_moving(std::istream& in) {
+  constexpr float kAuthoredTicksPerSecond = 60.0f;
   glm::vec2 point{};
   in >> point.x >> point.y;
   glm::vec2 px = shrooms::screen::scale_to_pixels(glm::vec2{point.x, -point.y} * 0.5f);
-  return arena::create<dynamic::MovingObject>(px);
+  return arena::create<dynamic::MovingObject>(px * kAuthoredTicksPerSecond);
 }
 
 inline dynamic::RotatingObject* parse_rotating(std::istream& in) {
