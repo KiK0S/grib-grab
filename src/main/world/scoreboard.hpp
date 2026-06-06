@@ -90,6 +90,7 @@ inline int current_score = 0;
 inline int current_hearts = 0;
 inline bool hearts_visible = false;
 inline bool status_panel_visible = false;
+inline float collector_panel_height_px = 0.0f;
 inline LayoutState layout_state = LayoutState::Corner;
 inline glm::vec2 current_panel_center_norm{0.0f, 0.0f};
 inline glm::vec2 animation_start_norm{0.0f, 0.0f};
@@ -166,9 +167,12 @@ inline glm::vec2 panel_size_px() {
   const size_t rows = std::max<size_t>(1, layout_row_count());
   const float row_span = layout_row_spacing_px() * static_cast<float>(rows - 1);
   const float content_height = row_span + max_row_height_px();
-  const float height =
+  float height =
       std::max(config.panel_min_height_px,
                content_height + config.panel_vertical_padding_px * 2.0f);
+  if (collector_panel_height_px > 0.0f && hearts_visible && current_recipe.empty()) {
+    height = std::max(collector_panel_height_px, content_height);
+  }
   return glm::vec2{base.x, height};
 }
 
@@ -485,6 +489,12 @@ inline void apply_layout() {
   for (auto& entry : entries) {
     update_entry_layout(entry);
   }
+}
+
+inline void set_collector_panel_height(float height_px) {
+  collector_panel_height_px = std::max(0.0f, height_px);
+  refresh_static_panel_target();
+  apply_layout();
 }
 
 inline void create_entry_visuals(Entry& entry, size_t index) {

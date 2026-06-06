@@ -1084,6 +1084,13 @@ inline void reset_collector_lives_if_needed() {
   scoreboard::set_hearts(collector_lives_remaining);
 }
 
+inline void configure_scoreboard_panel_height_for_mode() {
+  const float collector_height =
+      current_game_mode == GameMode::Collector && !tutorial_mode ? score_hud::panel_size_px().y
+                                                                 : 0.0f;
+  scoreboard::set_collector_panel_height(collector_height);
+}
+
 inline void decrement_collector_life() {
   if (current_game_mode != GameMode::Collector || tutorial_mode) return;
   collector_lives_remaining = std::max(0, collector_lives_remaining - 1);
@@ -1297,6 +1304,7 @@ inline void start_level_with_definition(const LevelDefinition& level, size_t dis
     sorted_counts.try_emplace(plan.type, 0);
   }
   const std::string score_task = "";
+  configure_scoreboard_panel_height_for_mode();
   scoreboard::init_with_targets(level.recipe_order, score_task);
   reset_collector_lives_if_needed();
   configure_spawners_for_level(level);
