@@ -71,6 +71,8 @@ struct Config {
   glm::vec2 audio_offset = glm::vec2(0.0f, -0.31f);
   glm::vec2 main_menu_scale = glm::vec2(0.25f, 0.08f);
   glm::vec2 main_menu_offset = glm::vec2(0.0f, -0.45f);
+  glm::vec2 skip_tutorial_scale = glm::vec2(0.25f, 0.08f);
+  glm::vec2 skip_tutorial_offset = glm::vec2(0.0f, -0.59f);
   glm::vec2 pause_button_position = glm::vec2(0.90f, -0.90f);
   glm::vec2 pause_button_scale = glm::vec2(0.095f, 0.095f);
   glm::vec2 pause_icon_scale = glm::vec2(0.055f, 0.055f);
@@ -131,7 +133,8 @@ inline constexpr size_t kResumeAction = 0;
 inline constexpr size_t kRestartAction = 1;
 inline constexpr size_t kAudioAction = 2;
 inline constexpr size_t kMainMenuAction = 3;
-inline constexpr size_t kActionCount = 4;
+inline constexpr size_t kSkipTutorialAction = 4;
+inline constexpr size_t kActionCount = 5;
 
 inline ecs::Entity* overlay = nullptr;
 inline render_system::QuadRenderable* overlay_quad = nullptr;
@@ -195,6 +198,17 @@ inline bool is_main_scene_active() {
 inline bool pause_controls_blocked() {
   return countdown::is_active() || levels::has_pending_failure() || levels::level_finished ||
          round_transition::is_active() || level_intro::is_active();
+}
+
+inline bool is_action_available(size_t index) {
+  return index != kSkipTutorialAction || levels::is_tutorial_mode();
+}
+
+inline size_t first_available_action() {
+  for (size_t i = 0; i < kActionCount; ++i) {
+    if (is_action_available(i)) return i;
+  }
+  return kResumeAction;
 }
 
 inline float clamp_unit(float value) {
@@ -360,8 +374,8 @@ inline void set_pause_menu_visible(bool visible) {
   pause_menu_open = visible;
   if (menu_hidden) menu_hidden->hide();
   if (pause_menu_icon_hidden) pause_menu_icon_hidden->set_visible(visible);
-  for (auto& action : action_lines) {
-    set_action_visibility(action, visible);
+  for (size_t i = 0; i < action_lines.size(); ++i) {
+    set_action_visibility(action_lines[i], visible && is_action_available(i));
   }
 }
 
@@ -507,7 +521,7 @@ inline ActionLine make_action_line(const std::string& label, const glm::vec2& ce
 
 inline void relayout_actions_for_variable_heights() {
   constexpr std::array<size_t, kActionCount> order{
-      kResumeAction, kRestartAction, kAudioAction, kMainMenuAction};
+      kResumeAction, kRestartAction, kAudioAction, kMainMenuAction, kSkipTutorialAction};
   const float gap_px = 12.0f;
 
   float next_top = action_lines[order[0]].button_base_pos.y;
@@ -543,22 +557,38 @@ struct PauseMenuController : public dynamic::DynamicObject {
     if (direction == 0) return;
     const int count = static_cast<int>(kActionCount);
     int next = static_cast<int>(selected_action_index) + (direction > 0 ? 1 : -1);
-    while (next < 0) {
-      next += count;
+    for (int attempt = 0; attempt < count; ++attempt) {
+      while (next < 0) {
+        next += count;
+      }
+      next %= count;
+      if (is_action_available(static_cast<size_t>(next))) {
+        selected_action_index = static_cast<size_t>(next);
+        return;
+      }
+      next += direction > 0 ? 1 : -1;
     }
-    next %= count;
-    selected_action_index = static_cast<size_t>(next);
+    selected_action_index = first_available_action();
   }
 
   void apply_action_visuals(std::optional<size_t> hovered_index) {
+    if (!is_action_available(selected_action_index)) {
+      selected_action_index = first_available_action();
+    }
     for (size_t i = 0; i < action_lines.size(); ++i) {
+      if (!is_action_available(i)) {
+        set_action_visibility(action_lines[i], false);
+        continue;
+      }
       const bool selected = (i == selected_action_index);
       const bool hovered = hovered_index && *hovered_index == i;
+      set_action_visibility(action_lines[i], pause_menu_open);
       set_action_visual_state(action_lines[i], selected, hovered, !selected);
     }
   }
 
   void trigger_action(size_t index) {
+    if (!is_action_available(index)) return;
     if (index == kRestartAction) {
       handle_restart();
       return;
@@ -569,6 +599,10 @@ struct PauseMenuController : public dynamic::DynamicObject {
     }
     if (index == kMainMenuAction) {
       handle_main_menu();
+      return;
+    }
+    if (index == kSkipTutorialAction) {
+      handle_skip_tutorial();
       return;
     }
     handle_toggle();
@@ -668,6 +702,7 @@ struct PauseMenuController : public dynamic::DynamicObject {
     std::optional<size_t> hovered_index;
     if (last_pointer) {
       for (size_t i = 0; i < action_lines.size(); ++i) {
+        if (!is_action_available(i)) continue;
         const auto [min_bound, max_bound] = action_bounds(action_lines[i]);
         if (!point_in_bounds(*last_pointer, min_bound, max_bound)) continue;
         hovered_index = i;
@@ -750,6 +785,10 @@ struct PauseMenuController : public dynamic::DynamicObject {
         trigger_action(kMainMenuAction);
         return;
       }
+      if (key == 'S' && levels::is_tutorial_mode()) {
+        trigger_action(kSkipTutorialAction);
+        return;
+      }
       if (key == 27) {
         trigger_action(kResumeAction);
         return;
@@ -806,7 +845,7 @@ struct PauseMenuController : public dynamic::DynamicObject {
     });
   }
 
-  void handle_main_menu() {
+  void open_main_menu_from_pause() {
     camera_shake::reset();
     vfx::reset_wobble_offsets();
     countdown::cancel();
@@ -820,7 +859,16 @@ struct PauseMenuController : public dynamic::DynamicObject {
       menu_scene->set_pause(true);
     }
     menu::enter_main_menu_mode();
-    menu::suppress_input_for_frames(2);
+  }
+
+  void handle_main_menu() {
+    open_main_menu_from_pause();
+  }
+
+  void handle_skip_tutorial() {
+    if (!levels::is_tutorial_mode()) return;
+    levels::skip_tutorial();
+    open_main_menu_from_pause();
   }
 
   void handle_audio_toggle() {
@@ -890,6 +938,9 @@ inline void init() {
   action_lines[kMainMenuAction] =
       make_action_line("Main Menu", config.menu_position + config.main_menu_offset,
                        config.main_menu_scale);
+  action_lines[kSkipTutorialAction] =
+      make_action_line("Skip Tutorial", config.menu_position + config.skip_tutorial_offset,
+                       config.skip_tutorial_scale);
   relayout_actions_for_variable_heights();
   refresh_audio_action_label();
 

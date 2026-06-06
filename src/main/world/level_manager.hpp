@@ -1401,6 +1401,18 @@ inline void finish_tutorial(bool success) {
   finalize_level(false);
 }
 
+inline void skip_tutorial() {
+  if (!tutorial_mode) return;
+  if (level_finished) return;
+  game_over_pending = false;
+  pending_loss = LossInfo{};
+  last_loss = LossInfo{};
+  level_failed = false;
+  level_finished = true;
+  finalize_level(true);
+  last_game_status = "Skipped Tutorial";
+}
+
 inline void restart_level() {
   if (infinite_mode) {
     infinite_round_index = 0;
