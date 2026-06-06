@@ -100,11 +100,6 @@ struct LossInfo {
   std::string type;
 };
 
-struct InfiniteCollectorTicket {
-  std::string type;
-  uint32_t index = 0;
-};
-
 inline std::vector<LevelDefinition> parsed_levels{};
 inline std::vector<LevelDefinition> base_levels{};
 inline std::unordered_map<std::string, periodic_spawn::PeriodicSpawnerObject*> spawners_by_type{};
@@ -144,14 +139,19 @@ inline transform::NoRotationTransform* background_transform = nullptr;
 inline GameMode current_game_mode = GameMode::Collector;
 inline std::string current_daily_date{};
 inline uint32_t current_daily_seed = 0;
-inline std::vector<InfiniteCollectorTicket> infinite_collector_queue{};
-inline uint32_t infinite_collector_ticket_index = 0;
-inline constexpr size_t kInfiniteCollectorMinQueue = 3;
-inline constexpr size_t kInfiniteCollectorMaxQueue = 5;
+inline uint32_t infinite_collector_wave_index = 0;
+inline uint32_t infinite_collector_wave_generation = 0;
+inline bool infinite_collector_wave_delay_pending = false;
+inline std::unordered_set<std::string> infinite_collector_active_wave_types{};
 inline constexpr int kInfiniteCollectorScorePerLevel = 150;
 inline constexpr int kInfiniteCollectorFirstDensityLevel = 1;
 inline constexpr double kInfiniteCollectorStartDensityMultiplier = 1.5;
 inline constexpr double kInfiniteCollectorDensityGrowthPerLevel = 0.5;
+inline constexpr int kInfiniteCollectorWaveDelayMs = 3000;
+inline constexpr int kInfiniteCollectorBaseWaveSpawns = 3;
+inline constexpr int kInfiniteCollectorMaxWaveSpawns = 12;
+inline constexpr float kInfiniteCollectorInitialTimerMin = 0.1f;
+inline constexpr float kInfiniteCollectorInitialTimerMax = 0.65f;
 inline constexpr int kInfiniteRecipeScorePerLevel = 450;
 
 using TutorialSpawnHook = std::function<void(const std::string&, ecs::Entity*)>;
@@ -646,15 +646,6 @@ inline uint32_t hash_daily_round(uint32_t stream, int round_index) {
   return hash;
 }
 
-inline uint32_t hash_daily_ticket(uint32_t stream, uint32_t ticket_index) {
-  refresh_daily_seed_if_needed();
-  uint32_t hash = current_daily_seed;
-  hash ^= stream * 0x9e3779b9u;
-  hash ^= (ticket_index + 1u) * 0x85ebca6bu;
-  hash *= 16777619u;
-  return hash;
-}
-
 inline uint32_t mix_daily_hash(uint32_t hash) {
   hash ^= hash >> 16;
   hash *= 0x7feb352du;
@@ -818,57 +809,6 @@ inline void build_infinite_level(int round_index) {
       current_game_mode == GameMode::Collector ? "Catch mushrooms until your lives run out" : "";
 }
 
-inline std::string next_infinite_collector_type(uint32_t ticket_index,
-                                               const std::string& previous_type) {
-  if (infinite_types.empty()) {
-    build_infinite_spawner_cache();
-  }
-  if (infinite_types.empty()) {
-    return "";
-  }
-
-  uint32_t hash = mix_daily_hash(hash_daily_ticket(0x7235u, ticket_index));
-  size_t index =
-      static_cast<size_t>(hash % static_cast<uint32_t>(infinite_types.size()));
-  if (infinite_types.size() > 1 && !previous_type.empty() &&
-      infinite_types[index] == previous_type) {
-    hash = mix_daily_hash(hash ^ 0xa511e9b3u);
-    const size_t offset =
-        1 + static_cast<size_t>(hash %
-                                static_cast<uint32_t>(infinite_types.size() - 1));
-    index = (index + offset) % infinite_types.size();
-  }
-
-  return infinite_types[index];
-}
-
-inline uint32_t infinite_collector_seed_for_ticket(const InfiniteCollectorTicket& ticket) {
-  uint32_t hash = hash_daily_ticket(0x9f41u, ticket.index);
-  hash = fnv1a_append(hash, ticket.type);
-  return hash;
-}
-
-inline void refill_infinite_collector_queue() {
-  if (infinite_types.empty()) {
-    build_infinite_spawner_cache();
-  }
-  while (infinite_collector_queue.size() < kInfiniteCollectorMaxQueue &&
-         !infinite_types.empty()) {
-    const uint32_t ticket_index = infinite_collector_ticket_index++;
-    const std::string previous_type =
-        infinite_collector_queue.empty() ? "" : infinite_collector_queue.back().type;
-    const std::string type = next_infinite_collector_type(ticket_index, previous_type);
-    if (type.empty()) break;
-    infinite_collector_queue.push_back(InfiniteCollectorTicket{type, ticket_index});
-  }
-}
-
-inline void reset_infinite_collector_queue() {
-  infinite_collector_queue.clear();
-  infinite_collector_ticket_index = 0;
-  refill_infinite_collector_queue();
-}
-
 inline SpawnerPlan infinite_collector_plan_for_type(const std::string& type) {
   auto it = base_spawner_plans.find(type);
   if (it != base_spawner_plans.end()) {
@@ -883,13 +823,14 @@ inline SpawnerPlan infinite_collector_plan_for_type(const std::string& type) {
   return plan;
 }
 
-inline SpawnerPlan scale_infinite_collector_spawner(SpawnerPlan plan) {
+inline SpawnerPlan scale_infinite_collector_wave_spawner(SpawnerPlan plan,
+                                                         int total_to_spawn) {
   const int collector_level = infinite_collector_density_level_index();
   const double density_multiplier =
       kInfiniteCollectorStartDensityMultiplier +
       static_cast<double>(collector_level) * kInfiniteCollectorDensityGrowthPerLevel;
   plan.density = std::max(0.1, plan.density * density_multiplier);
-  plan.total_to_spawn = 1;
+  plan.total_to_spawn = std::max(0, total_to_spawn);
   return plan;
 }
 
@@ -901,52 +842,153 @@ inline void disable_all_spawners() {
   }
 }
 
-inline void activate_infinite_collector_front_spawner() {
-  disable_all_spawners();
-  refill_infinite_collector_queue();
+inline uint32_t hash_infinite_collector_wave(uint32_t stream, uint32_t wave_index,
+                                             int score_level) {
+  refresh_daily_seed_if_needed();
+  uint32_t hash = current_daily_seed;
+  hash ^= stream * 0x9e3779b9u;
+  hash ^= (wave_index + 1u) * 0x85ebca6bu;
+  hash ^= static_cast<uint32_t>(std::max(0, score_level) + 1) * 0xc2b2ae35u;
+  hash *= 16777619u;
+  return mix_daily_hash(hash);
+}
 
-  while (!infinite_collector_queue.empty()) {
-    const auto& ticket = infinite_collector_queue.front();
-    auto spawner_it = spawners_by_type.find(ticket.type);
+inline int infinite_collector_wave_spawn_total() {
+  const int score_level = infinite_collector_level_index();
+  return std::min(kInfiniteCollectorMaxWaveSpawns,
+                  kInfiniteCollectorBaseWaveSpawns + std::max(0, score_level));
+}
+
+inline std::unordered_map<std::string, int> build_infinite_collector_wave_counts(
+    uint32_t wave_index) {
+  if (infinite_types.empty()) {
+    build_infinite_spawner_cache();
+  }
+
+  std::unordered_map<std::string, int> counts{};
+  if (infinite_types.empty()) {
+    return counts;
+  }
+
+  const int score_level = infinite_collector_level_index();
+  const int total = infinite_collector_wave_spawn_total();
+  const size_t type_count = infinite_types.size();
+  uint32_t hash = hash_infinite_collector_wave(0x4f2bu, wave_index, score_level);
+  const size_t offset = static_cast<size_t>(hash % static_cast<uint32_t>(type_count));
+
+  const int guaranteed_variety = std::min(total, static_cast<int>(type_count));
+  for (int i = 0; i < guaranteed_variety; ++i) {
+    const size_t index = (offset + static_cast<size_t>(i)) % type_count;
+    counts[infinite_types[index]] += 1;
+  }
+
+  for (int i = guaranteed_variety; i < total; ++i) {
+    hash = hash_infinite_collector_wave(0x91d5u + static_cast<uint32_t>(i), wave_index,
+                                        score_level);
+    const size_t index = static_cast<size_t>(hash % static_cast<uint32_t>(type_count));
+    counts[infinite_types[index]] += 1;
+  }
+
+  return counts;
+}
+
+inline uint32_t infinite_collector_seed_for_wave_type(uint32_t wave_index,
+                                                      const std::string& type) {
+  uint32_t hash = hash_infinite_collector_wave(0xa359u, wave_index,
+                                               infinite_collector_level_index());
+  hash = fnv1a_append(hash, type);
+  return mix_daily_hash(hash);
+}
+
+inline float infinite_collector_initial_timer_for_type(uint32_t wave_index,
+                                                       const std::string& type,
+                                                       float period) {
+  uint32_t hash = hash_infinite_collector_wave(0x6b81u, wave_index,
+                                               infinite_collector_level_index());
+  hash = fnv1a_append(hash, type);
+  hash = mix_daily_hash(hash);
+  const float t = static_cast<float>(hash % 1000u) / 999.0f;
+  const float jitter =
+      kInfiniteCollectorInitialTimerMin +
+      (kInfiniteCollectorInitialTimerMax - kInfiniteCollectorInitialTimerMin) * t;
+  return std::min(std::max(0.01f, period), jitter);
+}
+
+inline void reset_infinite_collector_waves() {
+  infinite_collector_wave_index = 0;
+  infinite_collector_wave_generation += 1;
+  infinite_collector_wave_delay_pending = false;
+  infinite_collector_active_wave_types.clear();
+}
+
+inline void start_next_infinite_collector_wave() {
+  if (!is_infinite_collector_run() || level_finished || game_over_pending) return;
+
+  disable_all_spawners();
+  infinite_collector_wave_delay_pending = false;
+  infinite_collector_active_wave_types.clear();
+
+  const uint32_t wave_index = infinite_collector_wave_index++;
+  const auto counts = build_infinite_collector_wave_counts(wave_index);
+  for (const auto& type : infinite_types) {
+    auto count_it = counts.find(type);
+    if (count_it == counts.end() || count_it->second <= 0) {
+      continue;
+    }
+
+    auto spawner_it = spawners_by_type.find(type);
     if (spawner_it == spawners_by_type.end() || !spawner_it->second) {
-      infinite_collector_queue.erase(infinite_collector_queue.begin());
-      refill_infinite_collector_queue();
       continue;
     }
 
     const SpawnerPlan plan =
-        scale_infinite_collector_spawner(infinite_collector_plan_for_type(ticket.type));
+        scale_infinite_collector_wave_spawner(infinite_collector_plan_for_type(type),
+                                              count_it->second);
     auto* spawner = spawner_it->second;
     spawner->configure(plan.period, plan.density, plan.total_to_spawn);
-    spawner->reseed(infinite_collector_seed_for_ticket(ticket));
+    spawner->reseed(infinite_collector_seed_for_wave_type(wave_index, type));
+    spawner->timer = infinite_collector_initial_timer_for_type(wave_index, type, plan.period);
     spawner->enabled = true;
-    return;
+    infinite_collector_active_wave_types.insert(type);
   }
 }
 
-inline void advance_infinite_collector_ticket_if_depleted(const std::string& type) {
-  if (!is_infinite_collector_run()) return;
-  if (infinite_collector_queue.empty() || infinite_collector_queue.front().type != type) {
-    return;
+inline bool infinite_collector_wave_spawns_depleted() {
+  if (infinite_collector_active_wave_types.empty()) return false;
+  for (const auto& type : infinite_collector_active_wave_types) {
+    auto spawner_it = spawners_by_type.find(type);
+    if (spawner_it == spawners_by_type.end() || !spawner_it->second) {
+      continue;
+    }
+    if (!spawner_it->second->is_depleted()) {
+      return false;
+    }
   }
-  auto spawner_it = spawners_by_type.find(type);
-  if (spawner_it == spawners_by_type.end() || !spawner_it->second ||
-      !spawner_it->second->is_depleted()) {
-    return;
-  }
-
-  infinite_collector_queue.erase(infinite_collector_queue.begin());
-  refill_infinite_collector_queue();
-  if (infinite_collector_queue.size() < kInfiniteCollectorMinQueue) {
-    refill_infinite_collector_queue();
-  }
-  activate_infinite_collector_front_spawner();
+  return true;
 }
 
-inline void on_infinite_collector_ticket_spawned(const std::string& type) {
+inline void schedule_next_infinite_collector_wave_if_depleted() {
   if (!is_infinite_collector_run()) return;
+  if (level_finished || game_over_pending || infinite_collector_wave_delay_pending) return;
+  if (!infinite_collector_wave_spawns_depleted()) return;
+
+  infinite_collector_wave_delay_pending = true;
+  const uint32_t generation = infinite_collector_wave_generation;
   deferred::fire_deferred(
-      [type]() { advance_infinite_collector_ticket_if_depleted(type); }, 0);
+      [generation]() {
+        if (!is_infinite_collector_run()) return;
+        if (generation != infinite_collector_wave_generation) return;
+        if (level_finished || game_over_pending) return;
+        if (!infinite_collector_wave_delay_pending) return;
+        start_next_infinite_collector_wave();
+      },
+      kInfiniteCollectorWaveDelayMs);
+}
+
+inline void on_infinite_collector_wave_spawned() {
+  if (!is_infinite_collector_run()) return;
+  deferred::fire_deferred([]() { schedule_next_infinite_collector_wave_if_depleted(); },
+                          0);
 }
 
 inline void refresh_infinite_collector_progression_for_score(int previous_score,
@@ -956,7 +998,6 @@ inline void refresh_infinite_collector_progression_for_score(int previous_score,
   const int next_level = infinite_collector_level_for_score(next_score);
   if (previous_level == next_level) return;
   apply_infinite_background_for_round(next_level);
-  activate_infinite_collector_front_spawner();
 }
 
 inline void prepare_infinite_preview() {
@@ -1135,7 +1176,7 @@ inline void on_mushroom_spawned(const std::string& type, ecs::Entity* entity) {
   }
   if (!current_level()) return;
   active_entities[type].insert(entity);
-  on_infinite_collector_ticket_spawned(type);
+  on_infinite_collector_wave_spawned();
 }
 
 inline void on_mushroom_caught(
@@ -1257,8 +1298,8 @@ inline void on_mushroom_sorted(ecs::Entity* entity) {
 inline void configure_spawners_for_level(const LevelDefinition& level) {
   disable_all_spawners();
   if (is_infinite_collector_run()) {
-    reset_infinite_collector_queue();
-    activate_infinite_collector_front_spawner();
+    reset_infinite_collector_waves();
+    start_next_infinite_collector_wave();
     return;
   }
   for (const auto& plan : level.spawners) {
@@ -1331,9 +1372,6 @@ inline void start_infinite_mode() {
   infinite_preview_ready = false;
   current_run_score = 0;
   milestone_bonus_awarded.clear();
-  if (current_game_mode == GameMode::Collector) {
-    reset_infinite_collector_queue();
-  }
   const std::string status =
       current_game_mode == GameMode::Collector
           ? "Infinite run (score " + std::to_string(current_run_score) + ")"
@@ -1680,8 +1718,10 @@ inline void initialize() {
   infinite_preview_date.clear();
   infinite_level = LevelDefinition{};
   tutorial_level = LevelDefinition{};
-  infinite_collector_queue.clear();
-  infinite_collector_ticket_index = 0;
+  infinite_collector_wave_index = 0;
+  infinite_collector_wave_generation = 0;
+  infinite_collector_wave_delay_pending = false;
+  infinite_collector_active_wave_types.clear();
   progress_save_exists = false;
   tutorial_completed = false;
   load_progress();
