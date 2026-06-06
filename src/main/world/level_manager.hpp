@@ -145,13 +145,13 @@ inline bool infinite_collector_wave_delay_pending = false;
 inline std::unordered_set<std::string> infinite_collector_active_wave_types{};
 inline constexpr int kInfiniteCollectorScorePerLevel = 150;
 inline constexpr int kInfiniteCollectorFirstDensityLevel = 1;
-inline constexpr double kInfiniteCollectorStartDensityMultiplier = 1.5;
-inline constexpr double kInfiniteCollectorDensityGrowthPerLevel = 0.5;
+inline constexpr double kInfiniteCollectorStartDensityMultiplier = 0.65;
+inline constexpr double kInfiniteCollectorDensityGrowthPerLevel = 0.25;
 inline constexpr int kInfiniteCollectorWaveDelayMs = 3000;
 inline constexpr int kInfiniteCollectorBaseWaveSpawns = 3;
 inline constexpr int kInfiniteCollectorMaxWaveSpawns = 12;
-inline constexpr float kInfiniteCollectorInitialTimerMin = 0.1f;
-inline constexpr float kInfiniteCollectorInitialTimerMax = 0.65f;
+inline constexpr float kInfiniteCollectorInitialTimerMin = 0.35f;
+inline constexpr float kInfiniteCollectorInitialTimerMax = 1.8f;
 inline constexpr int kInfiniteRecipeScorePerLevel = 450;
 
 using TutorialSpawnHook = std::function<void(const std::string&, ecs::Entity*)>;
