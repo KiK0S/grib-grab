@@ -150,6 +150,8 @@ inline constexpr size_t kInfiniteCollectorMinQueue = 3;
 inline constexpr size_t kInfiniteCollectorMaxQueue = 5;
 inline constexpr int kInfiniteCollectorScorePerLevel = 150;
 inline constexpr int kInfiniteCollectorFirstDensityLevel = 1;
+inline constexpr double kInfiniteCollectorStartDensityMultiplier = 1.5;
+inline constexpr double kInfiniteCollectorDensityGrowthPerLevel = 0.5;
 inline constexpr int kInfiniteRecipeScorePerLevel = 450;
 
 using TutorialSpawnHook = std::function<void(const std::string&, ecs::Entity*)>;
@@ -883,7 +885,9 @@ inline SpawnerPlan infinite_collector_plan_for_type(const std::string& type) {
 
 inline SpawnerPlan scale_infinite_collector_spawner(SpawnerPlan plan) {
   const int collector_level = infinite_collector_density_level_index();
-  const double density_multiplier = 1.0 + static_cast<double>(collector_level) * 0.25;
+  const double density_multiplier =
+      kInfiniteCollectorStartDensityMultiplier +
+      static_cast<double>(collector_level) * kInfiniteCollectorDensityGrowthPerLevel;
   plan.density = std::max(0.1, plan.density * density_multiplier);
   plan.total_to_spawn = 1;
   return plan;
